@@ -267,26 +267,26 @@ function highlightColumn(col) {
     gridContainer.parentElement.scrollLeft = col * effectiveColumnWidth;
 }
 
-function playSound(waveform, frequency, time, duration) {
+function playSound(waveform, frequency, time, duration, context = audioContext) {
     // console.log(`playSound: Playing ${waveform} at ${frequency}Hz at time ${time}`);
-    if (audioContext.state === 'suspended') {
-        audioContext.resume();
+    if (context.state === 'suspended') {
+        context.resume();
     }
 
     const selectedSfx = sfxSelect.value;
     if (selectedSfx) {
         // If an SFX is selected, play it instead of a note/instrument
-        playSFX(selectedSfx, time, duration, frequency); // Pass time, duration, and frequency for scheduling
+        playSFX(selectedSfx, time, duration, frequency, context); // Pass time, duration, and frequency for scheduling
         return { oscillator: null, gainNode: null }; // SFX are fire-and-forget, no nodes to stop
     }
 
     const selectedInstrument = instrumentSelect.value;
     if (selectedInstrument !== 'default') {
-        return playInstrument(selectedInstrument, frequency, time, duration);
+        return playInstrument(selectedInstrument, frequency, time, duration, context);
     }
 
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
     const noteDuration = duration || 60.0 / parseFloat(bpmInput.value);
 
     oscillator.type = waveform;
@@ -296,24 +296,23 @@ function playSound(waveform, frequency, time, duration) {
     gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration);
 
     oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
+    gainNode.connect(context.destination);
 
     oscillator.start(time);
     oscillator.stop(time + noteDuration); // Ensure the oscillator stops after its duration
     return { oscillator, gainNode };
 }
 
-function playInstrument(instrument, frequency, time, duration) {
+function playInstrument(instrument, frequency, time, duration, context = audioContext) {
     const noteDuration = duration || 60.0 / parseFloat(bpmInput.value);
     let oscillator, gainNode;
     let oscillator2, octUpOscillator, octDownOscillator, fluteVibratoLFO, fluteVibratoGain, vibratoLFO, vibratoGain, filter;
 
     switch (instrument) {
         case 'piano':
-            case 'piano':
-            oscillator = audioContext.createOscillator();
-            oscillator2 = audioContext.createOscillator(); // Second oscillator for richness
-            gainNode = audioContext.createGain();
+            oscillator = context.createOscillator();
+            oscillator2 = context.createOscillator(); // Second oscillator for richness
+            gainNode = context.createGain();
 
             oscillator.type = 'triangle';
             oscillator.frequency.setValueAtTime(frequency, time);
@@ -329,7 +328,7 @@ function playInstrument(instrument, frequency, time, duration) {
 
             oscillator.connect(gainNode);
             oscillator2.connect(gainNode); // Connect both oscillators
-            gainNode.connect(audioContext.destination);
+            gainNode.connect(context.destination);
 
             oscillator.start(time);
             oscillator2.start(time);
@@ -338,21 +337,21 @@ function playInstrument(instrument, frequency, time, duration) {
             break;
         case 'organ':
             // Main oscillator
-            oscillator = audioContext.createOscillator();
+            oscillator = context.createOscillator();
             oscillator.type = 'sine';
             oscillator.frequency.setValueAtTime(frequency, time);
 
             // Octave up oscillator
-            octUpOscillator = audioContext.createOscillator();
+            octUpOscillator = context.createOscillator();
             octUpOscillator.type = 'sine';
             octUpOscillator.frequency.setValueAtTime(frequency * 2, time);
 
             // Octave down oscillator
-            octDownOscillator = audioContext.createOscillator();
+            octDownOscillator = context.createOscillator();
             octDownOscillator.type = 'sine';
             octDownOscillator.frequency.setValueAtTime(frequency / 2, time);
 
-            gainNode = audioContext.createGain();
+            gainNode = context.createGain();
 
             // ADSR envelope for organ (quick attack, long sustain, long release)
             gainNode.gain.setValueAtTime(0.4, time); // Quick attack
@@ -363,7 +362,7 @@ function playInstrument(instrument, frequency, time, duration) {
             oscillator.connect(gainNode);
             octUpOscillator.connect(gainNode);
             octDownOscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
+            gainNode.connect(context.destination);
 
             oscillator.start(time);
             octUpOscillator.start(time);
@@ -374,9 +373,9 @@ function playInstrument(instrument, frequency, time, duration) {
             octDownOscillator.stop(time + noteDuration * 1.5);
             break;
         case 'synth_lead':
-            oscillator = audioContext.createOscillator();
-            oscillator2 = audioContext.createOscillator(); // Second oscillator for detune
-            gainNode = audioContext.createGain();
+            oscillator = context.createOscillator();
+            oscillator2 = context.createOscillator(); // Second oscillator for detune
+            gainNode = context.createGain();
 
             oscillator.type = 'sawtooth';
             oscillator.frequency.setValueAtTime(frequency, time);
@@ -392,7 +391,7 @@ function playInstrument(instrument, frequency, time, duration) {
 
             oscillator.connect(gainNode);
             oscillator2.connect(gainNode); // Connect both oscillators
-            gainNode.connect(audioContext.destination);
+            gainNode.connect(context.destination);
 
             oscillator.start(time);
             oscillator2.start(time);
@@ -400,9 +399,9 @@ function playInstrument(instrument, frequency, time, duration) {
             oscillator2.stop(time + noteDuration * 1.2);
             break;
         case 'bass':
-            oscillator = audioContext.createOscillator();
-            gainNode = audioContext.createGain();
-            const filter = audioContext.createBiquadFilter(); // Add a low-pass filter
+            oscillator = context.createOscillator();
+            gainNode = context.createGain();
+            const filter = context.createBiquadFilter(); // Add a low-pass filter
 
             oscillator.type = 'square';
             oscillator.frequency.setValueAtTime(frequency / 2, time); // Lower octave for bass
@@ -416,22 +415,21 @@ function playInstrument(instrument, frequency, time, duration) {
 
             oscillator.connect(filter); // Connect oscillator to filter
             filter.connect(gainNode); // Connect filter to gain node
-            gainNode.connect(audioContext.destination);
+            gainNode.connect(context.destination);
 
             oscillator.start(time);
             oscillator.stop(time + 0.3); // Shorter duration for punch
             break;
         case 'flute':
-            case 'flute':
-            oscillator = audioContext.createOscillator();
-            gainNode = audioContext.createGain();
+            oscillator = context.createOscillator();
+            gainNode = context.createGain();
             oscillator.type = 'sine';
             oscillator.frequency.setValueAtTime(frequency, time);
 
             // White noise for breathiness
-            const whiteNoise = audioContext.createBufferSource();
-            const bufferSize = audioContext.sampleRate * 2; // A few seconds of noise
-            const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+            const whiteNoise = context.createBufferSource();
+            const bufferSize = context.sampleRate * 2; // A few seconds of noise
+            const noiseBuffer = context.createBuffer(1, bufferSize, context.sampleRate);
             const output = noiseBuffer.getChannelData(0);
             for (let i = 0; i < bufferSize; i++) {
                 output[i] = Math.random() * 2 - 1; // White noise
@@ -439,18 +437,18 @@ function playInstrument(instrument, frequency, time, duration) {
             whiteNoise.buffer = noiseBuffer;
             whiteNoise.loop = true;
 
-            const noiseGain = audioContext.createGain();
+            const noiseGain = context.createGain();
             noiseGain.gain.setValueAtTime(0.02, time); // Very subtle noise level
 
             whiteNoise.connect(noiseGain);
             noiseGain.connect(gainNode); // Mix noise with main gain
 
             // Subtle Vibrato LFO
-            fluteVibratoLFO = audioContext.createOscillator();
+            fluteVibratoLFO = context.createOscillator();
             fluteVibratoLFO.type = 'sine';
             fluteVibratoLFO.frequency.setValueAtTime(4, time); // 4 Hz vibrato rate
 
-            const fluteVibratoGain = audioContext.createGain();
+            const fluteVibratoGain = context.createGain();
             fluteVibratoGain.gain.setValueAtTime(frequency * 0.005, time); // Subtle vibrato depth
 
             fluteVibratoLFO.connect(fluteVibratoGain);
@@ -463,7 +461,7 @@ function playInstrument(instrument, frequency, time, duration) {
             gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.5); // Longer, floaty release
 
             oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
+            gainNode.connect(context.destination);
 
             oscillator.start(time);
             fluteVibratoLFO.start(time); // Start vibrato LFO
@@ -474,11 +472,9 @@ function playInstrument(instrument, frequency, time, duration) {
             whiteNoise.stop(time + noteDuration * 1.5); // Stop white noise
             break;
         case 'trumpet':
-            case 'trumpet':
-            case 'trumpet':
-            oscillator = audioContext.createOscillator();
-            gainNode = audioContext.createGain();
-            const trumpetFilter = audioContext.createBiquadFilter(); // Add a low-pass filter
+            oscillator = context.createOscillator();
+            gainNode = context.createGain();
+            const trumpetFilter = context.createBiquadFilter(); // Add a low-pass filter
 
             oscillator.type = 'sawtooth';
 
@@ -487,11 +483,11 @@ function playInstrument(instrument, frequency, time, duration) {
             oscillator.frequency.linearRampToValueAtTime(frequency, time + 0.05); // Rapid ramp up to target frequency
 
             // Vibrato LFO (already implemented, keeping it)
-            vibratoLFO = audioContext.createOscillator();
+            vibratoLFO = context.createOscillator();
             vibratoLFO.type = 'sine';
             vibratoLFO.frequency.setValueAtTime(6, time); // 6 Hz vibrato rate
 
-            vibratoGain = audioContext.createGain();
+            vibratoGain = context.createGain();
             vibratoGain.gain.setValueAtTime(frequency * 0.01, time); // Vibrato depth (e.g., 1% of frequency)
 
             vibratoLFO.connect(vibratoGain);
@@ -510,19 +506,18 @@ function playInstrument(instrument, frequency, time, duration) {
 
             oscillator.connect(trumpetFilter); // Connect oscillator to filter
             trumpetFilter.connect(gainNode); // Connect filter to gain node
-            gainNode.connect(audioContext.destination);
+            gainNode.connect(context.destination);
 
             oscillator.start(time);
             vibratoLFO.start(time);
             oscillator.stop(time + noteDuration * 1.5);
             vibratoLFO.stop(time + noteDuration * 1.5);
             break;
-            break;
         case 'strings':
-            oscillator = audioContext.createOscillator();
-            oscillator2 = audioContext.createOscillator(); // Second oscillator for detune
-            const oscillator3 = audioContext.createOscillator(); // Third oscillator for more richness
-            gainNode = audioContext.createGain();
+            oscillator = context.createOscillator();
+            oscillator2 = context.createOscillator(); // Second oscillator for detune
+            const oscillator3 = context.createOscillator(); // Third oscillator for more richness
+            gainNode = context.createGain();
 
             oscillator.type = 'triangle'; // Still using triangle for plucked sound
             oscillator.frequency.setValueAtTime(frequency, time);
@@ -539,7 +534,7 @@ function playInstrument(instrument, frequency, time, duration) {
             oscillator.connect(gainNode);
             oscillator2.connect(gainNode); // Connect both oscillators
             oscillator3.connect(gainNode); // Connect the third oscillator
-            gainNode.connect(audioContext.destination);
+            gainNode.connect(context.destination);
 
             oscillator.start(time);
             oscillator2.start(time);
@@ -550,14 +545,14 @@ function playInstrument(instrument, frequency, time, duration) {
             break;
         default:
             // Fallback to default waveform if instrument not recognized
-            oscillator = audioContext.createOscillator();
-            gainNode = audioContext.createGain();
+            oscillator = context.createOscillator();
+            gainNode = context.createGain();
             oscillator.type = waveformSelect.value;
             oscillator.frequency.setValueAtTime(frequency, time);
             gainNode.gain.setValueAtTime(0.1, time);
             gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration);
             oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
+            gainNode.connect(context.destination);
             oscillator.start(time);
             oscillator.stop(time + noteDuration);
             break;
@@ -565,16 +560,16 @@ function playInstrument(instrument, frequency, time, duration) {
     return { oscillator, gainNode };
 }
 
-function playSFX(sfxType, time, duration, frequency) {
-    if (audioContext.state === 'suspended') {
-        audioContext.resume();
+function playSFX(sfxType, time, duration, frequency, context = audioContext) {
+    if (context.state === 'suspended') {
+        context.resume();
     }
 
-    const actualTime = time || audioContext.currentTime; // Use scheduled time or current time
+    const actualTime = time || context.currentTime; // Use scheduled time or current time
     const actualDuration = duration || 0.5; // Default SFX duration if not provided
 
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
 
     switch (sfxType) {
         case 'coin':
@@ -605,20 +600,20 @@ function playSFX(sfxType, time, duration, frequency) {
             break;
         case 'explosion':
             // Noise burst for explosion (frequency scaling doesn't apply here)
-            const bufferSize = audioContext.sampleRate * 0.5; // 0.5 seconds of noise
-            const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+            const bufferSize = context.sampleRate * 0.5; // 0.5 seconds of noise
+            const noiseBuffer = context.createBuffer(1, bufferSize, context.sampleRate);
             const output = noiseBuffer.getChannelData(0);
             for (let i = 0; i < bufferSize; i++) {
                 output[i] = Math.random() * 2 - 1; // White noise
             }
-            const noiseSource = audioContext.createBufferSource();
+            const noiseSource = context.createBufferSource();
             noiseSource.buffer = noiseBuffer;
             
             gainNode.gain.setValueAtTime(0.8, actualTime);
             gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.5);
 
             noiseSource.connect(gainNode);
-            gainNode.connect(audioContext.destination);
+            gainNode.connect(context.destination);
             noiseSource.start(actualTime);
             noiseSource.stop(actualTime + 0.5);
             return; // Noise doesn't use an oscillator
@@ -652,7 +647,7 @@ function playSFX(sfxType, time, duration, frequency) {
     }
 
     oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
+    gainNode.connect(context.destination);
 }
 
 sfxSelect.addEventListener('change', (event) => {
@@ -813,20 +808,30 @@ saveMp3Button.addEventListener('click', () => {
     for (let currentCol = 0; currentCol < numCols; currentCol++) {
         for (let i = 0; i < numRows; i++) {
             if (grid[i][currentCol]) {
-                const oscillator = offlineAudioContext.createOscillator();
-                const gainNode = offlineAudioContext.createGain();
+                const selectedSfx = sfxSelect.value;
+                const selectedInstrument = instrumentSelect.value;
 
-                oscillator.type = waveformSelect.value;
-                oscillator.frequency.setValueAtTime(frequencies[i], renderTime);
+                if (selectedSfx) {
+                    playSFX(selectedSfx, renderTime, noteDuration, frequencies[i], offlineAudioContext);
+                } else if (selectedInstrument !== 'default') {
+                    playInstrument(selectedInstrument, frequencies[i], renderTime, noteDuration, offlineAudioContext);
+                } else {
+                    // Default waveform sound
+                    const oscillator = offlineAudioContext.createOscillator();
+                    const gainNode = offlineAudioContext.createGain();
 
-                gainNode.gain.setValueAtTime(0.1, renderTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.0001, renderTime + noteDuration);
+                    oscillator.type = waveformSelect.value;
+                    oscillator.frequency.setValueAtTime(frequencies[i], renderTime);
 
-                oscillator.connect(gainNode);
-                gainNode.connect(offlineAudioContext.destination);
+                    gainNode.gain.setValueAtTime(0.1, renderTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.0001, renderTime + noteDuration);
 
-                oscillator.start(renderTime);
-                oscillator.stop(renderTime + noteDuration);
+                    oscillator.connect(gainNode);
+                    gainNode.connect(offlineAudioContext.destination);
+
+                    oscillator.start(renderTime);
+                    oscillator.stop(renderTime + noteDuration);
+                }
             }
         }
         renderTime += noteDuration;
