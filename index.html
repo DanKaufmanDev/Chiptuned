@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chiptuned</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="container mx-auto p-8 shadow-lg retro-container">
+        <h1 class="text-4xl font-bold mb-8 text-white flex justify-center">Chiptuned</h1>
+        <div class="controls mb-8 flex flex-col items-center space-y-4">
+            <label for="waveform" class="text-lg mr-4">Waveform:</label>
+            <select id="waveform" class="p-2 focus:outline-none focus:border-blue-500 retro-input">
+                <option value="square">Square</option>
+                <option value="sine">Sine</option>
+                <option value="sawtooth">Sawtooth</option>
+                <option value="triangle">Triangle</option>
+            </select>
+        </div>
+        <div class="sequencer p-6 shadow-md retro-container">
+            <h2 class="text-3xl font-bold mb-6 text-white flex justify-center">Sequencer</h2>
+            <div class="grid-wrapper relative flex mb-6 overflow-x-auto">
+                <div id="note-labels" class="grid grid-rows-8 gap-0.5 mr-2 w-max flex-shrink-0"></div>
+                <div id="grid-container" class="grid grid-rows-8 grid-cols-32 gap-0.5 flex-shrink-0"></div>
+                <div id="column-highlight" class="absolute top-0 bottom-0 bg-red-500 opacity-50 pointer-events-none hidden"></div>
+            </div>
+            <div class="sequencer-controls mt-8 pt-8 border-t-2 border-gray-700 flex flex-wrap justify-center items-center gap-2">
+                <label for="bpm" class="text-lg mr-2">BPM:</label>
+                <input type="range" id="bpm" min="60" max="240" value="120" class="w-24 h-2 appearance-none cursor-pointer bpm-slider">
+                <span id="bpm-value" class="text-lg font-bold text-white">120</span>
+                <label for="loop" class="text-lg mr-2">Loop:</label>
+                <input type="checkbox" id="loop" class="form-checkbox h-5 w-5 text-blue-600 focus:ring-blue-500 retro-checkbox">
+                <button id="play-music" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Play</button>
+                
+                <button id="clear-grid" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Clear</button>
+                <button id="random-grid" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Random</button>
+                <button id="octave-down" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Octave Down</button>
+                <button id="octave-up" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Octave Up</button>
+                <button id="save-mp3" disabled class="px-4 py-2 text-white font-bold transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed retro-button">Save as MP3</button>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+/* Optional: Pixel font */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+:root {
+    --border-color-light: #a1a1a1;
+    --border-color-dark: #000000;
+    --button-bg: #c0c0c0;
+    --button-text-color: #ffffff;
+    --active-cell-bg: #2b00ff;
+}
+
+body {
+    font-family: 'Press Start 2P', cursive;
+    background-color: #008080;
+    color: #ffffff;
+}
+
+.retro-container {
+    border: 2px solid var(--border-color-light);
+    border-right-color: var(--border-color-dark);
+    border-bottom-color: var(--border-color-dark);
+    background-color: #757575;
+    padding: 1rem;
+}
+
+.retro-button {
+    border: 2px solid var(--border-color-light);
+    border-right-color: var(--border-color-dark);
+    border-bottom-color: var(--border-color-dark);
+    background-color: var(--button-bg);
+    color: var(--button-text-color);
+    box-shadow: 2px 2px 0px 0px var(--border-color-dark);
+    text-shadow: 1px 1px 0px var(--border-color-light);
+}
+
+.retro-button:active {
+    border: 2px solid var(--border-color-dark);
+    border-right-color: var(--border-color-light);
+    border-bottom-color: var(--border-color-light);
+    box-shadow: 1px 1px 0px 0px var(--border-color-dark);
+}
+
+.retro-input, .retro-checkbox {
+    border: 2px solid var(--border-color-dark);
+    border-right-color: var(--border-color-light);
+    border-bottom-color: var(--border-color-light);
+    background-color: #ffffff;
+    color: #000000;
+}
+
+.grid-cell {
+    width: 40px;
+    height: 40px;
+    background-color: #c0c0c0;
+    border: 1px solid #808080;
+    cursor: pointer;
+}
+
+.grid-cell.active {
+    background-color: var(--active-cell-bg);
+}
+
+.note-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #656565;
+    padding: 0.25rem;
+    height: 40px;
+    box-sizing: border-box;
+    color: #ffffff;
+    cursor: default;
+}
+
+.bpm-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 8px;
+    background: #4a5568; /* bg-gray-600 */
+    outline: none;
+    opacity: 0.7;
+    transition: opacity .2s;
+}
+
+.bpm-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffffff; /* blue-400 */
+    cursor: pointer;
+}
+
+.bpm-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffffff; /* blue-400 */
+    cursor: pointer;
+}
