@@ -275,10 +275,7 @@ bpmInput.addEventListener('input', () => {
     bpmValueSpan.textContent = bpmInput.value;
 });
 
-playMusicButton.addEventListener('click', () => {
-    clearTimeout(musicTimeout);
-    playMusic();
-});
+
 
 
 
