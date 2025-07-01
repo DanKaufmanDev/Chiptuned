@@ -1,5 +1,7 @@
 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 const waveformSelect = document.getElementById('waveform');
+const instrumentSelect = document.getElementById('instrument');
+const sfxSelect = document.getElementById('sfx');
 const gridContainer = document.getElementById('grid-container');
 const noteLabelsContainer = document.getElementById('note-labels');
 const bpmInput = document.getElementById('bpm');
@@ -37,6 +39,7 @@ let endOfSequenceTimerId = 0;
 let effectiveColumnWidth = 0;
 let gridContainerOffsetLeft = 0;
 let columnHighlightWidth = 0;
+let baseNoteFrequencyForSFX = 261.63; // Initialize with a default C4 frequency
 
 
 function updateNotesAndFrequencies() {
@@ -57,6 +60,9 @@ function updateNotesAndFrequencies() {
         label.classList.add('note-label');
         label.textContent = noteName;
         noteLabelsContainer.appendChild(label);
+    }
+    if (frequencies.length > 0) {
+        baseNoteFrequencyForSFX = frequencies[0];
     }
 }
 
@@ -142,8 +148,19 @@ function nextNote() {
 function scheduleNote(beatNumber, time) {
     for (let i = 0; i < numRows; i++) {
         if (grid[i][beatNumber]) {
-            const { oscillator, gainNode } = playSound(waveformSelect.value, frequencies[i], time);
-            playingNodes.push({ oscillator, gainNode });
+            const selectedSfx = sfxSelect.value;
+            if (selectedSfx) {
+                playSFX(selectedSfx, time, undefined, frequencies[i]); // Pass frequency to SFX
+            } else {
+                const selectedInstrument = instrumentSelect.value;
+                if (selectedInstrument === 'default') {
+                    const { oscillator, gainNode } = playSound(waveformSelect.value, frequencies[i], time);
+                    playingNodes.push({ oscillator, gainNode });
+                } else {
+                    const { oscillator, gainNode } = playInstrument(selectedInstrument, frequencies[i], time);
+                    playingNodes.push({ oscillator, gainNode });
+                }
+            }
         }
     }
 }
@@ -253,6 +270,18 @@ function playSound(waveform, frequency, time, duration) {
         audioContext.resume();
     }
 
+    const selectedSfx = sfxSelect.value;
+    if (selectedSfx) {
+        // If an SFX is selected, play it instead of a note/instrument
+        playSFX(selectedSfx, time, duration, frequency); // Pass time, duration, and frequency for scheduling
+        return { oscillator: null, gainNode: null }; // SFX are fire-and-forget, no nodes to stop
+    }
+
+    const selectedInstrument = instrumentSelect.value;
+    if (selectedInstrument !== 'default') {
+        return playInstrument(selectedInstrument, frequency, time, duration);
+    }
+
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
     const noteDuration = duration || 60.0 / parseFloat(bpmInput.value);
@@ -271,11 +300,221 @@ function playSound(waveform, frequency, time, duration) {
     return { oscillator, gainNode };
 }
 
+function playInstrument(instrument, frequency, time, duration) {
+    const noteDuration = duration || 60.0 / parseFloat(bpmInput.value);
+    let oscillator, gainNode;
+
+    switch (instrument) {
+        case 'piano':
+            oscillator = audioContext.createOscillator();
+            gainNode = audioContext.createGain();
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(frequency, time);
+            gainNode.gain.setValueAtTime(0.5, time);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.start(time);
+            oscillator.stop(time + noteDuration);
+            break;
+        case 'organ':
+            oscillator = audioContext.createOscillator();
+            gainNode = audioContext.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(frequency, time);
+            gainNode.gain.setValueAtTime(0.3, time);
+            gainNode.gain.linearRampToValueAtTime(0.3, time + noteDuration * 0.8);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.start(time);
+            oscillator.stop(time + noteDuration);
+            break;
+        case 'synth_lead':
+            oscillator = audioContext.createOscillator();
+            gainNode = audioContext.createGain();
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(frequency, time);
+            gainNode.gain.setValueAtTime(0.4, time);
+            gainNode.gain.linearRampToValueAtTime(0.2, time + noteDuration * 0.5);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.start(time);
+            oscillator.stop(time + noteDuration);
+            break;
+        case 'bass':
+            oscillator = audioContext.createOscillator();
+            gainNode = audioContext.createGain();
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(frequency / 2, time); // Lower octave for bass
+            gainNode.gain.setValueAtTime(0.6, time);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 0.8);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.start(time);
+            oscillator.stop(time + noteDuration);
+            break;
+        case 'flute':
+            oscillator = audioContext.createOscillator();
+            gainNode = audioContext.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(frequency, time);
+            gainNode.gain.setValueAtTime(0.3, time);
+            gainNode.gain.linearRampToValueAtTime(0.1, time + noteDuration * 0.5);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.start(time);
+            oscillator.stop(time + noteDuration);
+            break;
+        case 'trumpet':
+            oscillator = audioContext.createOscillator();
+            gainNode = audioContext.createGain();
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(frequency, time);
+            gainNode.gain.setValueAtTime(0.5, time);
+            gainNode.gain.linearRampToValueAtTime(0.3, time + noteDuration * 0.3);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.start(time);
+            oscillator.stop(time + noteDuration);
+            break;
+        case 'strings':
+            oscillator = audioContext.createOscillator();
+            gainNode = audioContext.createGain();
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(frequency, time);
+            gainNode.gain.setValueAtTime(0.2, time);
+            gainNode.gain.linearRampToValueAtTime(0.2, time + noteDuration * 0.1);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.5); // Longer release
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.start(time);
+            oscillator.stop(time + noteDuration * 1.5);
+            break;
+        default:
+            // Fallback to default waveform if instrument not recognized
+            return playSound(waveformSelect.value, frequency, time, duration);
+    }
+    return { oscillator, gainNode };
+}
+
+function playSFX(sfxType, time, duration, frequency) {
+    if (audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
+
+    const actualTime = time || audioContext.currentTime; // Use scheduled time or current time
+    const actualDuration = duration || 0.5; // Default SFX duration if not provided
+
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    switch (sfxType) {
+        case 'coin':
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(1000 * (frequency / baseNoteFrequencyForSFX), actualTime); // Scale frequency
+            gainNode.gain.setValueAtTime(0.5, actualTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.1);
+            oscillator.start(actualTime);
+            oscillator.stop(actualTime + 0.1);
+            break;
+        case 'jump':
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(400 * (frequency / baseNoteFrequencyForSFX), actualTime); // Scale frequency
+            oscillator.frequency.linearRampToValueAtTime(800 * (frequency / baseNoteFrequencyForSFX), actualTime + 0.1); // Scale frequency
+            gainNode.gain.setValueAtTime(0.5, actualTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.2);
+            oscillator.start(actualTime);
+            oscillator.stop(actualTime + 0.2);
+            break;
+        case 'laser':
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(800 * (frequency / baseNoteFrequencyForSFX), actualTime); // Scale frequency
+            oscillator.frequency.linearRampToValueAtTime(100 * (frequency / baseNoteFrequencyForSFX), actualTime + 0.2); // Scale frequency
+            gainNode.gain.setValueAtTime(0.4, actualTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.2);
+            oscillator.start(actualTime);
+            oscillator.stop(actualTime + 0.2);
+            break;
+        case 'explosion':
+            // Noise burst for explosion (frequency scaling doesn't apply here)
+            const bufferSize = audioContext.sampleRate * 0.5; // 0.5 seconds of noise
+            const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = Math.random() * 2 - 1; // White noise
+            }
+            const noiseSource = audioContext.createBufferSource();
+            noiseSource.buffer = noiseBuffer;
+            
+            gainNode.gain.setValueAtTime(0.8, actualTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.5);
+
+            noiseSource.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            noiseSource.start(actualTime);
+            noiseSource.stop(actualTime + 0.5);
+            return; // Noise doesn't use an oscillator
+        case 'blip':
+            oscillator.type = 'square';
+            oscillator.frequency.setValueAtTime(800 * (frequency / baseNoteFrequencyForSFX), actualTime);
+            gainNode.gain.setValueAtTime(0.3, actualTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.05);
+            oscillator.start(actualTime);
+            oscillator.stop(actualTime + 0.05);
+            break;
+        case 'powerup':
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(400 * (frequency / baseNoteFrequencyForSFX), actualTime);
+            oscillator.frequency.linearRampToValueAtTime(800 * (frequency / baseNoteFrequencyForSFX), actualTime + 0.2);
+            gainNode.gain.setValueAtTime(0.6, actualTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.3);
+            oscillator.start(actualTime);
+            oscillator.stop(actualTime + 0.3);
+            break;
+        case 'hit':
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.setValueAtTime(200 * (frequency / baseNoteFrequencyForSFX), actualTime);
+            gainNode.gain.setValueAtTime(0.7, actualTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.1);
+            oscillator.start(actualTime);
+            oscillator.stop(actualTime + 0.1);
+            break;
+        default:
+            return;
+    }
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+}
+
+sfxSelect.addEventListener('change', (event) => {
+    const selectedSfx = event.target.value;
+    if (selectedSfx) {
+        // Clear instrument and waveform selections when an SFX is chosen
+        instrumentSelect.value = 'default';
+        waveformSelect.value = 'square';
+    }
+});
+
+waveformSelect.addEventListener('change', () => {
+    // Clear SFX selection and reset instrument when waveform is changed
+    sfxSelect.value = '';
+    instrumentSelect.value = 'default';
+});
+
+instrumentSelect.addEventListener('change', () => {
+    // Clear SFX selection and reset waveform when instrument is changed
+    sfxSelect.value = '';
+    waveformSelect.value = 'square';
+});
+
 bpmInput.addEventListener('input', () => {
     bpmValueSpan.textContent = bpmInput.value;
 });
-
-
 
 
 
@@ -297,6 +536,22 @@ randomGridButton.addEventListener('click', () => {
     const waveformOptions = waveformSelect.options;
     const randomWaveformIndex = Math.floor(Math.random() * waveformOptions.length);
     waveformSelect.value = waveformOptions[randomWaveformIndex].value;
+
+    // Randomly choose between instrument and SFX
+    const useSfx = Math.random() > 0.7; // 30% chance to use SFX
+
+    if (useSfx) {
+        const sfxOptions = Array.from(sfxSelect.options).filter(opt => opt.value !== '');
+        const randomSfxIndex = Math.floor(Math.random() * sfxOptions.length);
+        sfxSelect.value = sfxOptions[randomSfxIndex].value;
+        instrumentSelect.value = 'default'; // Reset instrument if SFX is chosen
+    } else {
+        // Random Instrument (excluding default)
+        const instrumentOptions = Array.from(instrumentSelect.options).filter(opt => opt.value !== 'default');
+        const randomInstrumentIndex = Math.floor(Math.random() * instrumentOptions.length);
+        instrumentSelect.value = instrumentOptions[randomInstrumentIndex].value;
+        sfxSelect.value = ''; // Clear SFX if instrument is chosen
+    }
 
     // Random Octave
     currentOctave = Math.floor(Math.random() * 3) + 3; // Octaves 3, 4, or 5

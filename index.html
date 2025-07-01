@@ -11,14 +11,42 @@
 <body class="flex items-center justify-center min-h-screen">
     <div class="container mx-auto p-8 shadow-lg retro-container">
         <h1 class="text-4xl font-bold mb-8 text-white flex justify-center">Chiptuned</h1>
-        <div class="controls mb-8 flex flex-col items-center space-y-4">
-            <label for="waveform" class="text-lg mr-4">Waveform:</label>
-            <select id="waveform" class="p-2 focus:outline-none focus:border-blue-500 retro-input">
-                <option value="square">Square</option>
-                <option value="sine">Sine</option>
-                <option value="sawtooth">Sawtooth</option>
-                <option value="triangle">Triangle</option>
-            </select>
+        <div class="controls mb-8 flex flex-row items-start justify-center space-x-4">
+            <div class="flex flex-col items-center">
+                <label for="instrument" class="text-lg mb-2">Instrument:</label>
+                <select id="instrument" class="p-2 focus:outline-none focus:border-blue-500 retro-input">
+                    <option value="default">Default (Waveform)</option>
+                    <option value="piano">Piano</option>
+                    <option value="organ">Organ</option>
+                    <option value="synth_lead">Synth Lead</option>
+                    <option value="bass">Bass</option>
+                    <option value="flute">Flute</option>
+                    <option value="trumpet">Trumpet</option>
+                    <option value="strings">Strings</option>
+                </select>
+            </div>
+            <div class="flex flex-col items-center">
+                <label for="waveform" class="text-lg mb-2">Waveform:</label>
+                <select id="waveform" class="p-2 focus:outline-none focus:border-blue-500 retro-input">
+                    <option value="square">Square</option>
+                    <option value="sine">Sine</option>
+                    <option value="sawtooth">Sawtooth</option>
+                    <option value="triangle">Triangle</option>
+                </select>
+            </div>
+            <div class="flex flex-col items-center">
+                <label for="sfx" class="text-lg mb-2">SFX:</label>
+                <select id="sfx" class="p-2 focus:outline-none focus:border-blue-500 retro-input">
+                    <option value="">Default (Waveform)</option>
+                    <option value="coin">Coin</option>
+                    <option value="jump">Jump</option>
+                    <option value="laser">Laser</option>
+                    <option value="explosion">Explosion</option>
+                    <option value="blip">Blip</option>
+                    <option value="powerup">Powerup</option>
+                    <option value="hit">Hit</option>
+                </select>
+            </div>
         </div>
         <div class="sequencer p-6 shadow-md retro-container">
             <h2 class="text-3xl font-bold mb-6 text-white flex justify-center">Sequencer</h2>
