@@ -59,6 +59,9 @@ function updateNotesAndFrequencies() {
         const label = document.createElement('div');
         label.classList.add('note-label');
         label.textContent = noteName;
+        if (noteName.includes('#')) {
+            label.classList.add('sharp-note-label');
+        }
         noteLabelsContainer.appendChild(label);
     }
     if (frequencies.length > 0) {
@@ -537,21 +540,9 @@ randomGridButton.addEventListener('click', () => {
     const randomWaveformIndex = Math.floor(Math.random() * waveformOptions.length);
     waveformSelect.value = waveformOptions[randomWaveformIndex].value;
 
-    // Randomly choose between instrument and SFX
-    const useSfx = Math.random() > 0.7; // 30% chance to use SFX
-
-    if (useSfx) {
-        const sfxOptions = Array.from(sfxSelect.options).filter(opt => opt.value !== '');
-        const randomSfxIndex = Math.floor(Math.random() * sfxOptions.length);
-        sfxSelect.value = sfxOptions[randomSfxIndex].value;
-        instrumentSelect.value = 'default'; // Reset instrument if SFX is chosen
-    } else {
-        // Random Instrument (excluding default)
-        const instrumentOptions = Array.from(instrumentSelect.options).filter(opt => opt.value !== 'default');
-        const randomInstrumentIndex = Math.floor(Math.random() * instrumentOptions.length);
-        instrumentSelect.value = instrumentOptions[randomInstrumentIndex].value;
-        sfxSelect.value = ''; // Clear SFX if instrument is chosen
-    }
+    // Reset Instrument and SFX dropdowns
+    instrumentSelect.value = 'default';
+    sfxSelect.value = '';
 
     // Random Octave
     currentOctave = Math.floor(Math.random() * 3) + 3; // Octaves 3, 4, or 5

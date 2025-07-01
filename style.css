@@ -89,6 +89,10 @@ body {
     cursor: default;
 }
 
+.note-label.sharp-note-label {
+    background-color: #505050; /* Slightly darker for sharp notes */
+}
+
 .bpm-slider {
     -webkit-appearance: none;
     width: 100%;
