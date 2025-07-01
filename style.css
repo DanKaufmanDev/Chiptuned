@@ -58,6 +58,23 @@ body {
 
 .grid-cell.active {
     background-color: var(--active-cell-bg);
+    position: relative; /* Needed for pseudo-element positioning */
+}
+
+.grid-cell.active.highlighted::before {
+    content: '\266B'; /* Unicode for beamed musical notes */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    color: white;
+    text-shadow: 1px 1px 2px black;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
 }
 
 .note-label {

@@ -167,6 +167,14 @@ function draw() {
     const percentageOfBeat = timeSinceLastNote / secondsPerBeat;
     const highlightCol = (currentColumn - 1 + numCols) % numCols;
 
+    // Clear previous highlights
+    const previouslyHighlighted = document.querySelectorAll('.grid-cell.highlighted');
+    previouslyHighlighted.forEach(cell => cell.classList.remove('highlighted'));
+
+    // Add new highlights
+    const currentlyHighlighted = document.querySelectorAll(`[data-col='${highlightCol}']`);
+    currentlyHighlighted.forEach(cell => cell.classList.add('highlighted'));
+
     highlightColumn(highlightCol);
 
     requestAnimationFrame(draw);
@@ -199,6 +207,10 @@ function stopPlayback(clearGridFlag = false) {
     columnHighlight.classList.remove('block');
     columnHighlight.classList.add('hidden');
     playMusicButton.textContent = "Play";
+
+    // Clear all highlighted cells
+    const highlightedCells = document.querySelectorAll('.grid-cell.highlighted');
+    highlightedCells.forEach(cell => cell.classList.remove('highlighted'));
 
     if (clearGridFlag) {
         for (let i = 0; i < numRows; i++) {
