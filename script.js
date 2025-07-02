@@ -1558,16 +1558,16 @@ randomGridButton.addEventListener('click', () => {
 });
 
 octaveDownButton.addEventListener('click', () => {
-    if (currentOctave > 0) {
-        currentOctave--;
-        updateNotesAndFrequencies();
+    if (layers[activeLayerIndex].octave > 0) {
+        layers[activeLayerIndex].octave--;
+        renderActiveLayer(); // Re-render active layer to update notes and grid
     }
 });
 
 octaveUpButton.addEventListener('click', () => {
-    if (currentOctave < 9) {
-        currentOctave++;
-        updateNotesAndFrequencies();
+    if (layers[activeLayerIndex].octave < 9) {
+        layers[activeLayerIndex].octave++;
+        renderActiveLayer(); // Re-render active layer to update notes and grid
     }
 });
 
@@ -1783,37 +1783,44 @@ saveMp3Button.addEventListener('click', async () => {
         audioContext.sampleRate // Sample rate
     );
 
-    for (let i = 0; i < numRows; i++) {
-        grid[i].forEach(note => {
-            const noteStartTime = note.start * noteDurationPerColumn;
-            const noteDuration = (note.end - note.start + 1) * noteDurationPerColumn;
+    layers.forEach(layer => {
+        if (layer.isMuted) return; // Skip muted layers
 
-            const selectedSfx = sfxSelect.value;
-            const selectedInstrument = instrumentSelect.value;
+        const layerFrequencies = [];
+        for (let i = 0; i < numRows; i++) {
+            layerFrequencies.push(baseFrequencies[i] * Math.pow(2, layer.octave));
+        }
 
-            if (selectedSfx) {
-                playSFX(selectedSfx, noteStartTime, noteDuration, frequencies[i], offlineAudioContext);
-            } else if (selectedInstrument !== 'default') {
-                playInstrument(selectedInstrument, frequencies[i], noteStartTime, noteDuration, offlineAudioContext);
-            } else {
-                // Default waveform sound
-                const oscillator = offlineAudioContext.createOscillator();
-                const gainNode = offlineAudioContext.createGain();
+        for (let i = 0; i < numRows; i++) {
+            layer.grid[i].forEach(note => {
+                const noteStartTime = note.start * noteDurationPerColumn;
+                const noteDuration = (note.end - note.start + 1) * noteDurationPerColumn;
+                const noteFrequency = layerFrequencies[i];
 
-                oscillator.type = waveformSelect.value;
-                oscillator.frequency.setValueAtTime(frequencies[i], noteStartTime);
+                if (layer.sfx) {
+                    playSFX(layer.sfx, noteStartTime, noteDuration, noteFrequency, offlineAudioContext);
+                } else if (layer.instrument !== 'default') {
+                    playInstrument(layer.instrument, noteFrequency, noteStartTime, noteDuration, offlineAudioContext);
+                } else {
+                    // Default waveform sound
+                    const oscillator = offlineAudioContext.createOscillator();
+                    const gainNode = offlineAudioContext.createGain();
 
-                gainNode.gain.setValueAtTime(0.05, noteStartTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.0001, noteStartTime + noteDuration);
+                    oscillator.type = layer.waveform;
+                    oscillator.frequency.setValueAtTime(noteFrequency, noteStartTime);
 
-                oscillator.connect(gainNode);
-                gainNode.connect(offlineAudioContext.destination);
+                    gainNode.gain.setValueAtTime(0.05, noteStartTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.0001, noteStartTime + noteDuration);
 
-                oscillator.start(noteStartTime);
-                oscillator.stop(noteStartTime + noteDuration);
-            }
-        });
-    }
+                    oscillator.connect(gainNode);
+                    gainNode.connect(offlineAudioContext.destination);
+
+                    oscillator.start(noteStartTime);
+                    oscillator.stop(noteStartTime + noteDuration);
+                }
+            });
+        }
+    });
 
     offlineAudioContext.startRendering().then(async function(renderedBuffer) {
         const mp3encoder = new lamejs.Mp3Encoder(2, renderedBuffer.sampleRate, 128); // 2 channels, sample rate, 128 kbps

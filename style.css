@@ -6,7 +6,7 @@
     --border-color-dark: #000000;
     --button-bg: #c0c0c0;
     --button-text-color: #ffffff;
-    --active-cell-bg: #2b00ff;
+    --active-cell-bg: #008080;
 }
 
 body {
@@ -199,4 +199,8 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+#column-highlight {
+    background-color: rgba(255, 255, 0, 0.20); /* Bright yellow with 50% opacity */
 }
