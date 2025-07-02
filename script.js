@@ -48,6 +48,40 @@ let originalRowState = [];
 let currentNote = null; // Stores the note object being dragged/modified
 let dragTimeout = null;
 let currentProjectFileName = 'my_chiptuned_project.cht'; // New global variable to store the current project filename
+let totalSequenceDuration = 0; // Total duration of the sequence in seconds
+let playbackStartTime = 0; // AudioContext time when playback started
+let currentPlaybackTime = 0; // Current playback time in seconds
+
+function formatTime(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+}
+
+function updateTotalDurationAndDisplay() {
+    const bpm = parseFloat(bpmInput.value);
+    const noteDurationPerColumn = 60 / bpm;
+    
+    let maxColWithNote = -1;
+    layers.forEach(layer => {
+        layer.grid.forEach(row => {
+            row.forEach(note => {
+                if (note.end > maxColWithNote) {
+                    maxColWithNote = note.end;
+                }
+            });
+        });
+    });
+
+    if (maxColWithNote === -1) {
+        totalSequenceDuration = 0;
+    } else {
+        totalSequenceDuration = (maxColWithNote + 1) * noteDurationPerColumn;
+    }
+    
+    globalProgressBar.max = totalSequenceDuration;
+    globalTimestamp.textContent = `${formatTime(currentPlaybackTime)}/${formatTime(totalSequenceDuration)}`;
+}
 
 function createNewLayer(name) {
     return {
@@ -209,6 +243,7 @@ function toggleSingleNote(row, col) {
     requestAnimationFrame(() => {
         updateGridDisplay();
         renderLayerList();
+        updateTotalDurationAndDisplay();
     });
 }
 
@@ -420,27 +455,39 @@ function draw() {
 }
 
 function startPlayback() {
-    if (isPlaying) return;
-    isPlaying = true;
-    console.log("playMusic: Starting playback.");
+    if (isPlaying) return; // If already playing, do nothing
+    isPlaying = true; // Set to true immediately
+    console.log("startPlayback: Playback initiated. isPlaying:", isPlaying);
     clearTimeout(endOfSequenceTimerId);
+
+    // Calculate total sequence duration
+    const bpm = parseFloat(bpmInput.value);
+    const noteDurationPerColumn = 60 / bpm;
+    totalSequenceDuration = numCols * noteDurationPerColumn;
+
+    globalProgressBar.max = totalSequenceDuration;
+    globalProgressBar.value = 0;
+    globalTimestamp.textContent = `0:00/${formatTime(totalSequenceDuration)}`;
+
     currentColumn = 0;
     nextNoteTime = audioContext.currentTime;
+    playbackStartTime = audioContext.currentTime;
     playingNodes = [];
     scheduler();
     requestAnimationFrame(draw);
-        globalPlayPauseButton.textContent = "Stop";
+    console.log("startPlayback: Setting button text to 'Stop'");
+    globalPlayPauseButton.textContent = "Stop";
 }
 
 function stopPlayback(clearGridFlag = false) {
-    if (!isPlaying && !clearGridFlag) return;
-    isPlaying = false;
-    console.log("playMusic: Stopping playback.");
+    if (!isPlaying && !clearGridFlag) return; // If not playing and not forcing clear, do nothing
+    isPlaying = false; // Set to false immediately
+    console.log("stopPlayback: Playback stopped. isPlaying:", isPlaying);
     clearTimeout(schedulerTimerId);
     clearTimeout(endOfSequenceTimerId);
     playingNodes.forEach(node => {
-        node.oscillator.stop(0);
-        node.gainNode.disconnect();
+        if (node.oscillator) node.oscillator.stop(0);
+        if (node.gain) node.gain.disconnect(); // Disconnect gain node
     });
     playingNodes = [];
     columnHighlight.classList.remove('block');
@@ -455,8 +502,11 @@ function stopPlayback(clearGridFlag = false) {
         renderActiveLayer(); // Re-render the main grid
         renderLayerList(); // Re-render the layer list
     }
-    requestAnimationFrame(draw);
-        globalPlayPauseButton.textContent = "Play";
+    console.log("stopPlayback: Setting button text to 'Play'");
+    globalPlayPauseButton.textContent = "Play";
+    globalProgressBar.value = 0;
+    currentPlaybackTime = 0;
+    globalTimestamp.textContent = `0:00/${formatTime(totalSequenceDuration)}`;
 }
 
 function handleMouseDown(e, row, col) {
@@ -608,17 +658,20 @@ function handleMouseUp() {
     // After drag, re-render the entire grid to ensure correctness
     requestAnimationFrame(updateGridDisplay);
     renderLayerList();
+    updateTotalDurationAndDisplay();
 
     // Clear lastRenderedNote after drag is complete
     lastRenderedNote = null;
 }
 
 globalPlayPauseButton.addEventListener('click', () => {
+    console.log("Global Play/Pause button clicked. isPlaying before:", isPlaying);
     if (isPlaying) {
         stopPlayback();
     } else {
         startPlayback();
     }
+    console.log("Global Play/Pause button clicked. isPlaying after:", isPlaying);
 });
 
 function highlightColumn(col, span = 1) {
@@ -1307,6 +1360,7 @@ instrumentSelect.addEventListener('change', () => {
 
 bpmInput.addEventListener('input', () => {
     bpmValueSpan.textContent = bpmInput.value;
+    updateTotalDurationAndDisplay();
 });
 
 bpmValueSpan.addEventListener('click', () => {
@@ -1334,6 +1388,7 @@ function updateBpmFromTextInput() {
 
     bpmInput.value = newBpm;
     bpmValueSpan.textContent = newBpm;
+    updateTotalDurationAndDisplay();
 
     bpmTextInput.classList.add('hidden');
     bpmValueSpan.classList.remove('hidden');
@@ -1357,6 +1412,8 @@ clearGridButton.addEventListener('click', () => {
     renderLayerList(); // Re-render the layer list
     columnHighlight.classList.remove('block');
     columnHighlight.classList.add('hidden');
+    currentPlaybackTime = 0;
+    updateTotalDurationAndDisplay();
 });
 
 randomGridButton.addEventListener('click', () => {
@@ -1429,6 +1486,7 @@ randomGridButton.addEventListener('click', () => {
     const newBpm = Math.floor(Math.random() * (180 - 90 + 1)) + 90;
     bpmInput.value = newBpm;
     bpmValueSpan.textContent = newBpm;
+    updateTotalDurationAndDisplay();
 });
 
 octaveDownButton.addEventListener('click', () => {
@@ -1450,6 +1508,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addLayer(); // Create initial layer
     bpmValueSpan.textContent = bpmInput.value;
     adjustLayout();
+    updateTotalDurationAndDisplay();
 
     // Enable the saveMp3Button only if lamejs is defined
     if (typeof lamejs !== 'undefined') {
@@ -1610,6 +1669,7 @@ async function loadProject(data) {
             bpmInput.value = loadedData.bpm;
             bpmValueSpan.textContent = loadedData.bpm;
         }
+        updateTotalDurationAndDisplay();
 
         updateGridDisplay(); // Update the visual grid based on loaded data
 
