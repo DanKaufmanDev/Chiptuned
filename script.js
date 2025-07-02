@@ -91,7 +91,8 @@ function createNewLayer(name) {
         instrument: 'default',
         waveform: 'square',
         sfx: '',
-        octave: 4
+        octave: 4,
+        isMuted: false
     };
 }
 
@@ -164,6 +165,19 @@ function renderLayerList() {
                 renderLayerList(); // Re-render to hide input without saving
             }
         });
+
+        const muteBtn = document.createElement('button');
+        muteBtn.textContent = 'M';
+        muteBtn.classList.add('mute-layer-btn');
+        if (layer.isMuted) {
+            muteBtn.classList.add('active'); // Add 'active' class if muted
+        }
+        muteBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent the layer from being selected when muting
+            layers[index].isMuted = !layers[index].isMuted;
+            renderLayerList(); // Re-render to update mute button state
+        });
+        layerNameContainer.appendChild(muteBtn);
 
         const deleteBtn = document.createElement('button');
         deleteBtn.textContent = 'X';
@@ -432,6 +446,8 @@ function nextNote() {
 
 function scheduleNote(beatNumber, time) {
     layers.forEach(layer => {
+        if (layer.isMuted) return; // Skip muted layers
+
         for (let i = 0; i < numRows; i++) {
             // Find notes that start at the current beatNumber
             const notesToPlay = layer.grid[i].filter(note => beatNumber === note.start);
@@ -440,16 +456,18 @@ function scheduleNote(beatNumber, time) {
                 const noteDurationInBeats = note.end - note.start + 1;
                 const noteDurationInSeconds = noteDurationInBeats * (60.0 / parseFloat(bpmInput.value));
 
+                const noteFrequency = baseFrequencies[i] * Math.pow(2, layer.octave);
+
                 const selectedSfx = layer.sfx;
                 if (selectedSfx) {
-                    playSFX(selectedSfx, time, noteDurationInSeconds, frequencies[i]); // Pass frequency to SFX
+                    playSFX(selectedSfx, time, noteDurationInSeconds, noteFrequency); // Pass frequency to SFX
                 } else {
                     const selectedInstrument = layer.instrument;
                     if (selectedInstrument === 'default') {
-                        const { oscillator, gainNode } = playSound(layer.waveform, frequencies[i], time, noteDurationInSeconds);
+                        const { oscillator, gainNode } = playSound(layer.waveform, noteFrequency, time, noteDurationInSeconds);
                         playingNodes.push({ oscillator, gainNode });
                     } else {
-                        const { oscillator, gainNode } = playInstrument(selectedInstrument, frequencies[i], time, noteDurationInSeconds);
+                        const { oscillator, gainNode } = playInstrument(selectedInstrument, noteFrequency, time, noteDurationInSeconds);
                         playingNodes.push({ oscillator, gainNode });
                     }
                 }
@@ -737,18 +755,6 @@ function playSound(waveform, frequency, time, duration, context = audioContext) 
     // console.log(`playSound: Playing ${waveform} at ${frequency}Hz at time ${time}`);
     if (context.state === 'suspended') {
         context.resume();
-    }
-
-    const selectedSfx = sfxSelect.value;
-    if (selectedSfx) {
-        // If an SFX is selected, play it instead of a note/instrument
-        playSFX(selectedSfx, time, duration, frequency, context); // Pass time, duration, and frequency for scheduling
-        return { oscillator: null, gainNode: null }; // SFX are fire-and-forget, no nodes to stop
-    }
-
-    const selectedInstrument = instrumentSelect.value;
-    if (selectedInstrument !== 'default') {
-        return playInstrument(selectedInstrument, frequency, time, duration, context);
     }
 
     const oscillator = context.createOscillator();
@@ -1382,21 +1388,30 @@ function playSFX(sfxType, time, duration, frequency, context = audioContext) {
 
 sfxSelect.addEventListener('change', (event) => {
     const selectedSfx = event.target.value;
+    layers[activeLayerIndex].sfx = selectedSfx; // Save to active layer
     if (selectedSfx) {
         // Clear instrument and waveform selections when an SFX is chosen
+        layers[activeLayerIndex].instrument = 'default'; // Save to active layer
+        layers[activeLayerIndex].waveform = 'square'; // Save to active layer
         instrumentSelect.value = 'default';
         waveformSelect.value = 'square';
     }
 });
 
 waveformSelect.addEventListener('change', () => {
+    layers[activeLayerIndex].waveform = waveformSelect.value; // Save to active layer
     // Clear SFX selection and reset instrument when waveform is changed
+    layers[activeLayerIndex].sfx = ''; // Save to active layer
+    layers[activeLayerIndex].instrument = 'default'; // Save to active layer
     sfxSelect.value = '';
     instrumentSelect.value = 'default';
 });
 
 instrumentSelect.addEventListener('change', () => {
+    layers[activeLayerIndex].instrument = instrumentSelect.value; // Save to active layer
     // Clear SFX selection and reset waveform when instrument is changed
+    layers[activeLayerIndex].sfx = ''; // Save to active layer
+    layers[activeLayerIndex].waveform = 'square'; // Save to active layer
     sfxSelect.value = '';
     waveformSelect.value = 'square';
 });

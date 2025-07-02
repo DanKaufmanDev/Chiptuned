@@ -160,7 +160,8 @@ body {
     border: 3px solid #4a5568; /* Creates padding around thumb */
 }
 
-.delete-layer-btn {
+.delete-layer-btn,
+.mute-layer-btn {
     width: 20px;
     height: 20px;
     background-color: #333333; /* Dark grey/black */
@@ -173,13 +174,25 @@ body {
     text-align: center;
     padding-left: 1px; /* Nudge X to the right by 1px */
     cursor: pointer;
-    margin-left: 0.5rem; /* Small gap from layer name */
 }
 
-.delete-layer-btn:active {
+.delete-layer-btn:active,
+.mute-layer-btn:active {
     border: 1px solid var(--border-color-dark);
     border-right-color: var(--border-color-light);
     border-bottom-color: var(--border-color-light);
+}
+
+.mute-layer-btn {
+    margin-left: 0.5rem; /* Space from layer name */
+}
+
+.delete-layer-btn {
+    margin-left: 0.25rem; /* Space from mute button */
+}
+
+.mute-layer-btn.active {
+    background-color: #ff0000; /* Red when muted */
 }
 
 .layer-name {
