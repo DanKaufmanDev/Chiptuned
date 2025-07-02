@@ -1472,6 +1472,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     loadProject(loadedData);
                 } catch (error) {
                     console.error('Error loading project:', error);
+                    alert('Could not load project file. It may be corrupt.');
                 }
             };
             reader.readAsText(file);
@@ -1555,42 +1556,6 @@ function fallbackSave(blob, fileName) {
     URL.revokeObjectURL(url);
 }
 
-function fallbackSave(blob, fileName) {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}
-
-function fallbackSave(blob, fileName) {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-}
-
-function fallbackSave(dataStr, fileName) {
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement('a');
-            link.href = url;
-            link.download = `my_chiptuned_project.cht`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-}
-
 async function loadProject(data) {
     try {
         const importedKey = await window.crypto.subtle.importKey(
@@ -1647,6 +1612,21 @@ async function loadProject(data) {
 
     } catch (error) {
         console.error('Decryption failed:', error);
+        // As a fallback for old projects, try to load without decryption
+        try {
+            const loadedData = JSON.parse(data);
+            layers = loadedData.layers;
+            activeLayerIndex = 0;
+            renderActiveLayer();
+            renderLayerList();
+            if (typeof loadedData.bpm === 'string' || typeof loadedData.bpm === 'number') {
+                bpmInput.value = loadedData.bpm;
+                bpmValueSpan.textContent = loadedData.bpm;
+            }
+            updateGridDisplay();
+        } catch (e) {
+            console.error('Could not load project as unencrypted data either.', e);
+        }
     }
 }
 
