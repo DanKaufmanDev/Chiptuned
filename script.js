@@ -189,9 +189,27 @@ function renderLayerList() {
             for (let j = 0; j < numCols; j++) {
                 const cell = document.createElement('div');
                 cell.classList.add('layer-item-grid-cell');
-                const noteExists = layer.grid[i].some(note => j >= note.start && j <= note.end);
-                if (noteExists) {
-                    cell.style.backgroundColor = 'var(--active-cell-bg)';
+
+                let coveredByNote = false;
+                let noteStartingAtThisCell = null;
+
+                for (const note of layer.grid[i]) {
+                    if (j >= note.start && j <= note.end) {
+                        coveredByNote = true;
+                        if (j === note.start) {
+                            noteStartingAtThisCell = note;
+                        }
+                        break;
+                    }
+                }
+
+                if (coveredByNote) {
+                    if (noteStartingAtThisCell) {
+                        cell.style.backgroundColor = 'var(--active-cell-bg)';
+                        cell.style.gridColumn = `${noteStartingAtThisCell.start + 1} / ${noteStartingAtThisCell.end + 2}`;
+                    } else {
+                        cell.style.display = 'none';
+                    }
                 } else {
                     cell.style.backgroundColor = '#c0c0c0';
                 }
