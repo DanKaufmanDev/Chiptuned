@@ -13,6 +13,8 @@ const randomGridButton = document.getElementById('random-grid');
 const octaveDownButton = document.getElementById('octave-down');
 const octaveUpButton = document.getElementById('octave-up');
 const saveMp3Button = document.getElementById('save-mp3');
+const saveProjectButton = document.getElementById('save-project');
+const loadProjectButton = document.getElementById('load-project');
 const columnHighlight = document.getElementById('column-highlight');
 
 const baseNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -24,10 +26,32 @@ let frequencies = [];
 const numRows = 12; // Chromatic scale
 const numCols = 32;
 
-let grid = Array(numRows).fill(null).map(() => Array(numCols).fill(false));
+let grid = Array(numRows).fill(null).map(() => []); // Each row will store an array of note objects {start: col, end: col}
 let musicTimeout;
 let lastHighlightedColumn = -1;
 let playingNodes = [];
+
+let isDragging = false;
+let dragStartCol = -1;
+let dragStartRow = -1;
+let isActivating = false;
+let lastDraggedCol = -1;
+let originalRowState = [];
+let currentNote = null; // Stores the note object being dragged/modified
+let dragTimeout = null;
+let currentProjectFileName = 'my_chiptuned_project.cht'; // New global variable to store the current project filename
+
+function toggleSingleNote(row, col) {
+    const existingNoteIndex = grid[row].findIndex(note => note.start === col && note.end === col);
+    if (existingNoteIndex !== -1) {
+        // Note exists, remove it
+        grid[row].splice(existingNoteIndex, 1);
+    } else {
+        // Note does not exist, add it
+        grid[row].push({ start: col, end: col });
+    }
+    requestAnimationFrame(updateGridDisplay);
+}
 
 let isPlaying = false;
 let currentColumn = 0;
@@ -39,6 +63,7 @@ let endOfSequenceTimerId = 0;
 let effectiveColumnWidth = 0;
 let gridContainerOffsetLeft = 0;
 let columnHighlightWidth = 0;
+let gridColumnGap = 0; // Make gridColumnGap a global variable
 let baseNoteFrequencyForSFX = 261.63; // Initialize with a default C4 frequency
 
 
@@ -76,19 +101,18 @@ function createGrid() {
     noteLabelsContainer.innerHTML = '';
 
     // Reset the grid array
-    grid = Array(numRows).fill(null).map(() => Array(numCols).fill(false));
+    grid = Array(numRows).fill(null).map(() => []);
 
     // Hide the column highlight when the grid is created or recreated
     columnHighlight.classList.remove('block');
     columnHighlight.classList.add('hidden');
 
     updateNotesAndFrequencies(); // Call this first to populate notes and frequencies
-    // console.log('Notes and frequencies updated');
 
     // Explicitly set grid properties for gridContainer
     gridContainer.style.display = 'grid';
-    gridContainer.style.gridTemplateRows = `repeat(${numRows}, minmax(0, 40px))`; // Explicitly define row height
-    gridContainer.style.gridTemplateColumns = `repeat(${numCols}, minmax(0, 40px))`; // Explicitly define column width
+    gridContainer.style.gridTemplateRows = `repeat(${numRows}, 40px)`; // Explicitly define row height
+    gridContainer.style.gridTemplateColumns = `repeat(${numCols}, 40px)`; // Explicitly define column width
     gridContainer.style.minWidth = `${numCols * 40 + (numCols - 1) * 2}px`; // Calculate min-width based on cells and gaps
 
     // Explicitly set grid properties for noteLabelsContainer
@@ -101,30 +125,61 @@ function createGrid() {
             cell.classList.add('grid-cell');
             cell.dataset.row = i;
             cell.dataset.col = j;
-            cell.addEventListener('click', () => toggleCell(i, j));
+            cell.addEventListener('mousedown', (e) => handleMouseDown(e, i, j));
             gridContainer.appendChild(cell);
         }
     }
-    // console.log('Grid cells appended');
+    // After creating cells, update their active state based on the grid data
+    requestAnimationFrame(updateGridDisplay);
 
     // Calculate column width and offset once
     const firstCell = gridContainer.children[0];
     if (firstCell) {
         const cellActualWidth = firstCell.offsetWidth;
         const computedStyle = window.getComputedStyle(gridContainer);
-        const gridColumnGap = parseFloat(computedStyle.getPropertyValue('grid-column-gap'));
+        gridColumnGap = parseFloat(computedStyle.getPropertyValue('grid-column-gap'));
         effectiveColumnWidth = cellActualWidth + gridColumnGap;
         gridContainerOffsetLeft = noteLabelsContainer.offsetWidth + 8; // Explicitly calculate offset
         columnHighlightWidth = cellActualWidth; // Set the highlighter width to the cell width
     }
 }
 
-function toggleCell(row, col, playPreview = true) {
-    grid[row][col] = !grid[row][col];
-    const cell = document.querySelector(`[data-row='${row}'][data-col='${col}']`);
-    cell.classList.toggle('active', grid[row][col]);
-    if (grid[row][col] && playPreview && !isPlaying) {
-        playSound(waveformSelect.value, frequencies[row], audioContext.currentTime, 0.5);
+function updateGridDisplay() {
+    for (let i = 0; i < numRows; i++) {
+        for (let j = 0; j < numCols; j++) {
+            const cell = document.querySelector(`[data-row='${i}'][data-col='${j}']`);
+
+            // Reset all styles for the current cell
+            cell.classList.remove('active');
+            cell.style.gridColumn = '';
+            cell.style.display = 'block'; // Default to visible
+
+            let coveredByNote = false;
+            let noteStartingAtThisCell = null;
+
+            // Check if this cell is covered by any note in the current row
+            for (const note of grid[i]) {
+                if (j >= note.start && j <= note.end) {
+                    coveredByNote = true;
+                    if (j === note.start) {
+                        noteStartingAtThisCell = note;
+                    }
+                    break; // Found a note covering this cell, no need to check further
+                }
+            }
+
+            if (coveredByNote) {
+                if (noteStartingAtThisCell) {
+                    // This cell is the start of a note
+                    cell.classList.add('active');
+                    cell.style.gridColumn = `${noteStartingAtThisCell.start + 1} / ${noteStartingAtThisCell.end + 2}`;
+                } else {
+                    // This cell is part of a note, but not the start
+                    cell.style.display = 'none';
+                }
+            }
+            // If not covered by any note, it remains display: 'block' (default)
+        }
     }
 }
 
@@ -150,21 +205,27 @@ function nextNote() {
 
 function scheduleNote(beatNumber, time) {
     for (let i = 0; i < numRows; i++) {
-        if (grid[i][beatNumber]) {
+        // Find notes that start at the current beatNumber
+        const notesToPlay = grid[i].filter(note => beatNumber === note.start);
+
+        notesToPlay.forEach(note => {
+            const noteDurationInBeats = note.end - note.start + 1;
+            const noteDurationInSeconds = noteDurationInBeats * (60.0 / parseFloat(bpmInput.value));
+
             const selectedSfx = sfxSelect.value;
             if (selectedSfx) {
-                playSFX(selectedSfx, time, undefined, frequencies[i]); // Pass frequency to SFX
+                playSFX(selectedSfx, time, noteDurationInSeconds, frequencies[i]); // Pass frequency to SFX
             } else {
                 const selectedInstrument = instrumentSelect.value;
                 if (selectedInstrument === 'default') {
-                    const { oscillator, gainNode } = playSound(waveformSelect.value, frequencies[i], time);
+                    const { oscillator, gainNode } = playSound(waveformSelect.value, frequencies[i], time, noteDurationInSeconds);
                     playingNodes.push({ oscillator, gainNode });
                 } else {
-                    const { oscillator, gainNode } = playInstrument(selectedInstrument, frequencies[i], time);
+                    const { oscillator, gainNode } = playInstrument(selectedInstrument, frequencies[i], time, noteDurationInSeconds);
                     playingNodes.push({ oscillator, gainNode });
                 }
             }
-        }
+        });
     }
 }
 
@@ -192,10 +253,10 @@ function draw() {
     previouslyHighlighted.forEach(cell => cell.classList.remove('highlighted'));
 
     // Add new highlights
-    const currentlyHighlighted = document.querySelectorAll(`[data-col='${highlightCol}']`);
-    currentlyHighlighted.forEach(cell => cell.classList.add('highlighted'));
+    // const currentlyHighlighted = document.querySelectorAll(`[data-col='${highlightCol}']`);
+    // currentlyHighlighted.forEach(cell => cell.classList.add('highlighted'));
 
-    highlightColumn(highlightCol);
+    highlightColumn(highlightCol, 1); // Always pass 1 for single column highlight
 
     requestAnimationFrame(draw);
 }
@@ -233,14 +294,162 @@ function stopPlayback(clearGridFlag = false) {
     highlightedCells.forEach(cell => cell.classList.remove('highlighted'));
 
     if (clearGridFlag) {
-        for (let i = 0; i < numRows; i++) {
-            for (let j = 0; j < numCols; j++) {
-                if (grid[i][j]) {
-                    toggleCell(i, j, false);
+        grid = Array(numRows).fill(null).map(() => []); // Clear the grid data
+        updateGridDisplay(); // Update the visual display
+    }
+}
+
+function handleMouseDown(e, row, col) {
+    if (e.button !== 0) return; // Only left click
+
+    dragStartCol = col;
+    dragStartRow = row;
+
+    // Set a timeout to differentiate between click and drag
+    dragTimeout = setTimeout(() => {
+        // If timeout completes, it's a click, so toggle single note
+        toggleSingleNote(row, col);
+        isDragging = false; // Reset dragging state
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+    }, 200); // 200ms delay
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+}
+
+function handleMouseMove(e) {
+    // If dragTimeout is still active, it means this is the first mousemove that initiates a drag
+    if (dragTimeout) {
+        clearTimeout(dragTimeout); // Clear the click timeout
+        isDragging = true; // Now it's definitely a drag
+
+        // Initialize currentNote based on whether we're activating or deactivating
+        const existingNoteIndex = grid[dragStartRow].findIndex(note => dragStartCol >= note.start && dragStartCol <= note.end);
+        if (existingNoteIndex !== -1) {
+            isActivating = false;
+            currentNote = grid[dragStartRow][existingNoteIndex];
+            grid[dragStartRow].splice(existingNoteIndex, 1); // Temporarily remove
+        } else {
+            isActivating = true;
+            currentNote = { start: dragStartCol, end: dragStartCol };
+            grid[dragStartRow].push(currentNote);
+        }
+    }
+
+    if (!isDragging) return; // Only proceed if a drag is active
+
+    const targetCell = e.target.closest('.grid-cell');
+    if (!targetCell) return;
+
+    const gridRect = gridContainer.getBoundingClientRect();
+    const mouseX = e.clientX - gridRect.left;
+    let currentCol = Math.floor(mouseX / effectiveColumnWidth);
+    currentCol = Math.max(0, Math.min(numCols - 1, currentCol));
+    const currentRow = parseInt(targetCell.dataset.row);
+
+    if (currentRow !== dragStartRow) return; // Only allow horizontal dragging
+
+    // Calculate the initial proposed start and end based on drag direction
+    let proposedStart = dragStartCol;
+    let proposedEnd = currentCol;
+
+    if (currentCol < dragStartCol) {
+        proposedStart = currentCol;
+        proposedEnd = dragStartCol;
+    }
+
+    // If we are activating (drawing a new note), check for overlaps and cap
+    if (isActivating) {
+        const existingNotesInRow = grid[dragStartRow].filter(note => note !== currentNote);
+
+        for (const existingNote of existingNotesInRow) {
+            // Check for overlap with the proposed note
+            const overlapStart = Math.max(proposedStart, existingNote.start);
+            const overlapEnd = Math.min(proposedEnd, existingNote.end);
+
+            if (overlapStart <= overlapEnd) { // There is an overlap
+                if (currentCol > dragStartCol) { // Dragging right
+                    proposedEnd = existingNote.start - 1; // Cap the end before the occupied cell
+                } else { // Dragging left
+                    proposedStart = existingNote.end + 1; // Cap the start after the occupied cell
+                }
+                // After capping, ensure proposedStart is still <= proposedEnd
+                if (proposedStart > proposedEnd) {
+                    // If they've crossed, it means the note should effectively be a single cell
+                    // at the dragStartCol, or not exist if dragStartCol is also invalid.
+                    // For now, let's make it a single cell at dragStartCol if it becomes invalid.
+                    proposedStart = dragStartCol;
+                    proposedEnd = dragStartCol;
+                }
+                break; // Stop checking once an overlap is found and capped
+            }
+        }
+    }
+
+    // Ensure proposedStart and proposedEnd are within overall grid bounds after capping
+    proposedStart = Math.max(0, Math.min(numCols - 1, proposedStart));
+    proposedEnd = Math.max(0, Math.min(numCols - 1, proposedEnd));
+
+    // Assign the (potentially capped) proposed values to currentNote
+    currentNote.start = proposedStart;
+    currentNote.end = proposedEnd;
+
+    renderDragFeedback();
+}
+
+let lastRenderedNote = null; // To keep track of the previously rendered drag feedback
+
+function renderDragFeedback() {
+    // Clear previous feedback
+    if (lastRenderedNote) {
+        for (let col = lastRenderedNote.start; col <= lastRenderedNote.end; col++) {
+            const cell = document.querySelector(`[data-row='${dragStartRow}'][data-col='${col}']`);
+            if (cell) {
+                cell.classList.remove('active');
+                cell.style.gridColumn = '';
+                cell.style.display = 'block';
+            }
+        }
+    }
+
+    // Render current feedback
+    if (currentNote) {
+        const startCell = document.querySelector(`[data-row='${dragStartRow}'][data-col='${currentNote.start}']`);
+        if (startCell) {
+            startCell.classList.add('active');
+            startCell.style.gridColumn = `${currentNote.start + 1} / ${currentNote.end + 2}`;
+            for (let col = currentNote.start + 1; col <= currentNote.end; col++) {
+                const cell = document.querySelector(`[data-row='${dragStartRow}'][data-col='${col}']`);
+                if (cell) {
+                    cell.style.display = 'none';
                 }
             }
         }
     }
+    lastRenderedNote = { ...currentNote }; // Store a copy for next render
+}
+
+function handleMouseUp() {
+    clearTimeout(dragTimeout); // Clear any pending click timeout
+
+    // If no drag occurred, it was a single click
+    if (!isDragging) {
+        toggleSingleNote(dragStartRow, dragStartCol);
+    }
+
+    isDragging = false;
+    dragStartCol = -1;
+    dragStartRow = -1;
+    currentNote = null;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+
+    // After drag, re-render the entire grid to ensure correctness
+    requestAnimationFrame(updateGridDisplay);
+
+    // Clear lastRenderedNote after drag is complete
+    lastRenderedNote = null;
 }
 
 playMusicButton.addEventListener('click', () => {
@@ -251,12 +460,12 @@ playMusicButton.addEventListener('click', () => {
     }
 });
 
-function highlightColumn(col) {
+function highlightColumn(col, span = 1) {
     if (effectiveColumnWidth === 0) return;
 
     const gridWrapperScrollLeft = gridContainer.parentElement.scrollLeft;
 
-    columnHighlight.style.width = `${columnHighlightWidth}px`;
+    columnHighlight.style.width = `${columnHighlightWidth}px`; // Always one column width
     columnHighlight.style.left = `${gridContainerOffsetLeft + (col * effectiveColumnWidth) - gridWrapperScrollLeft}px`;
     columnHighlight.style.height = `auto`;
     columnHighlight.style.top = `0`;
@@ -287,7 +496,7 @@ function playSound(waveform, frequency, time, duration, context = audioContext) 
 
     const oscillator = context.createOscillator();
     const gainNode = context.createGain();
-    const noteDuration = duration || 60.0 / parseFloat(bpmInput.value);
+    const noteDuration = duration; // Use the provided duration
 
     oscillator.type = waveform;
     oscillator.frequency.setValueAtTime(frequency, time);
@@ -304,7 +513,7 @@ function playSound(waveform, frequency, time, duration, context = audioContext) 
 }
 
 function playInstrument(instrument, frequency, time, duration, context = audioContext) {
-    const noteDuration = duration || 60.0 / parseFloat(bpmInput.value);
+    const noteDuration = duration; // Use the provided duration
     let oscillator, gainNode;
     let oscillator2, octUpOscillator, octDownOscillator, fluteVibratoLFO, fluteVibratoGain, vibratoLFO, vibratoGain, filter;
 
@@ -942,13 +1151,8 @@ bpmInput.addEventListener('input', () => {
 
 
 clearGridButton.addEventListener('click', () => {
-    for (let i = 0; i < numRows; i++) {
-        for (let j = 0; j < numCols; j++) {
-            if (grid[i][j]) {
-                toggleCell(i, j);
-            }
-        }
-    }
+    grid = Array(numRows).fill(null).map(() => []); // Clear the grid data
+    requestAnimationFrame(updateGridDisplay); // Update the visual display
     columnHighlight.classList.remove('block');
     columnHighlight.classList.add('hidden');
 });
@@ -969,13 +1173,7 @@ randomGridButton.addEventListener('click', () => {
     updateNotesAndFrequencies();
 
     // --- 2. Clear the grid ---
-    for (let i = 0; i < numRows; i++) {
-        for (let j = 0; j < numCols; j++) {
-            if (grid[i][j]) {
-                toggleCell(i, j, false);
-            }
-        }
-    }
+    grid = Array(numRows).fill(null).map(() => []);
 
     // --- 3. Generate Music ---
     // Define multiple chord progressions
@@ -995,7 +1193,8 @@ randomGridButton.addEventListener('click', () => {
         [2, 1, 0, 1], // Down-up
         [0, 1, 2, 0]  // Root-focused
     ];
-    const noteSkipProbability = Math.random() * 0.4; // 0.0 to 0.4
+
+    const lastGeneratedNoteInRow = Array(numRows).fill(null); // Track the last note generated for each row
 
     for (let chordIndex = 0; chordIndex < selectedProgression.length; chordIndex++) {
         const chord = selectedProgression[chordIndex];
@@ -1004,24 +1203,25 @@ randomGridButton.addEventListener('click', () => {
 
         // Add a bass note for each chord on the first beat
         const bassNoteRow = chord.root;
-        if (!grid[bassNoteRow][startCol]) {
-            toggleCell(bassNoteRow, startCol, false);
-        }
+        const bassNote = { start: startCol, end: startCol };
+        grid[bassNoteRow].push(bassNote);
+        lastGeneratedNoteInRow[bassNoteRow] = bassNote;
 
-        // Place the arpeggio pattern
+        // Generate arpeggiated notes for the chord duration
         for (let i = 0; i < chordDuration; i++) {
             const col = startCol + i;
-            if (i > 0) { // Don't conflict with bass note
-                const noteIndex = arpeggioPattern[i % arpeggioPattern.length];
-                const noteRow = chord.notes[noteIndex];
-                if (Math.random() > noteSkipProbability) {
-                    if (!grid[noteRow][col]) {
-                        toggleCell(noteRow, col, false);
-                    }
-                }
-            }
+            if (col >= numCols) break; // Prevent going out of bounds
+
+            const noteIndex = arpeggioPattern[i % arpeggioPattern.length];
+            const noteRow = chord.notes[noteIndex];
+
+            // Always generate single notes
+            grid[noteRow].push({ start: col, end: col });
         }
     }
+    setTimeout(() => {
+        requestAnimationFrame(updateGridDisplay); // Update the visual display after generating notes
+    }, 0);
 
     // --- 4. Set random BPM ---
     const newBpm = Math.floor(Math.random() * (180 - 90 + 1)) + 90;
@@ -1053,12 +1253,251 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.warn("lamejs is not defined. 'Save as MP3' button will remain disabled.");
     }
+
+    saveProjectButton.addEventListener('click', saveProject);
+    loadProjectButton.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.cht';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            currentProjectFileName = file.name; // Store the loaded file's name
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const loadedData = JSON.parse(event.target.result);
+                    loadProject(loadedData);
+                } catch (error) {
+                    console.error('Error loading project:', error);
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    });
 });
 
-saveMp3Button.addEventListener('click', () => {
+async function saveProject() {
+    const projectData = {
+        grid: grid,
+        bpm: bpmInput.value,
+        octave: currentOctave,
+        waveform: waveformSelect.value,
+        instrument: instrumentSelect.value,
+        sfx: sfxSelect.value
+    };
+
+    const dataStr = JSON.stringify(projectData);
+
+    try {
+        const key = await window.crypto.subtle.generateKey(
+            { name: "AES-GCM", length: 256 },
+            true,
+            ["encrypt", "decrypt"]
+        );
+        const iv = window.crypto.getRandomValues(new Uint8Array(12)); // AES-GCM IV is 12 bytes
+
+        const encoded = new TextEncoder().encode(dataStr);
+        const ciphertext = await window.crypto.subtle.encrypt(
+            {
+                name: "AES-GCM",
+                iv: iv,
+            },
+            key,
+            encoded
+        );
+
+        const exportedKey = await window.crypto.subtle.exportKey("jwk", key);
+
+        const encryptedData = {
+            key: exportedKey,
+            iv: Array.from(iv),
+            ciphertext: Array.from(new Uint8Array(ciphertext))
+        };
+
+        const encryptedDataStr = JSON.stringify(encryptedData);
+        const blob = new Blob([encryptedDataStr], { type: 'application/json' });
+        const fileName = currentProjectFileName;
+
+        if ('showSaveFilePicker' in window) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: fileName,
+                    types: [{
+                        description: 'Chiptuned Project File',
+                        accept: { 'application/json': ['.cht'] },
+                    }],
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error('Error saving project using File System Access API:', err);
+                    fallbackSave(blob, fileName);
+                }
+            }
+        } else {
+            fallbackSave(blob, fileName);
+        }
+    } catch (error) {
+        console.error('Encryption failed:', error);
+    }
+}
+
+function fallbackSave(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+function fallbackSave(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+function fallbackSave(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+}
+
+function fallbackSave(dataStr, fileName) {
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+            link.href = url;
+            link.download = `my_chiptuned_project.cht`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+}
+
+async function loadProject(data) {
+    try {
+        const importedKey = await window.crypto.subtle.importKey(
+            "jwk",
+            data.key,
+            { name: "AES-GCM" },
+            true,
+            ["decrypt"]
+        );
+        const iv = new Uint8Array(data.iv);
+        const ciphertext = new Uint8Array(data.ciphertext);
+
+        const decrypted = await window.crypto.subtle.decrypt(
+            {
+                name: "AES-GCM",
+                iv: iv,
+            },
+            importedKey,
+            ciphertext
+        );
+
+        const decodedDataStr = new TextDecoder().decode(decrypted);
+        const loadedData = JSON.parse(decodedDataStr);
+
+        // Security check: Ensure all expected fields are present and no extra fields
+        const expectedFields = ['grid', 'bpm', 'octave', 'waveform', 'instrument', 'sfx'];
+        const actualFields = Object.keys(loadedData);
+
+        for (const field of expectedFields) {
+            if (!(field in loadedData)) {
+                throw new Error(`Missing expected field: ${field}`);
+            }
+        }
+
+        for (const field of actualFields) {
+            if (!expectedFields.includes(field)) {
+                throw new Error(`Unexpected field found: ${field}`);
+            }
+        }
+
+        // Clear current grid
+        grid = Array(numRows).fill(null).map(() => []);
+
+        // Load grid data
+        if (loadedData.grid && Array.isArray(loadedData.grid)) {
+            loadedData.grid.forEach((row, rowIndex) => {
+                if (rowIndex < numRows && Array.isArray(row)) {
+                    row.forEach(note => {
+                        if (typeof note.start === 'number' && typeof note.end === 'number') {
+                            grid[rowIndex].push({ start: note.start, end: note.end });
+                        }
+                    });
+                }
+            });
+        }
+
+        // Load BPM
+        if (typeof loadedData.bpm === 'string' || typeof loadedData.bpm === 'number') {
+            bpmInput.value = loadedData.bpm;
+            bpmValueSpan.textContent = loadedData.bpm;
+        }
+
+        // Load Octave
+        if (typeof loadedData.octave === 'number') {
+            currentOctave = loadedData.octave;
+            updateNotesAndFrequencies(); // Re-render note labels and frequencies
+        }
+
+        // Load Waveform
+        if (typeof loadedData.waveform === 'string') {
+            waveformSelect.value = loadedData.waveform;
+        }
+
+        // Load Instrument
+        if (typeof loadedData.instrument === 'string') {
+            instrumentSelect.value = loadedData.instrument;
+        }
+
+        // Load SFX
+        if (typeof loadedData.sfx === 'string') {
+            sfxSelect.value = loadedData.sfx;
+        }
+
+        updateGridDisplay(); // Update the visual grid based on loaded data
+
+    } catch (error) {
+        console.error('Decryption failed:', error);
+    }
+}
+
+saveMp3Button.addEventListener('click', async () => {
     const bpm = parseFloat(bpmInput.value);
-    const noteDuration = 60 / bpm;
-    const totalDuration = numCols * noteDuration;
+    let activeSoundType = '';
+    if (sfxSelect.value) {
+        activeSoundType = sfxSelect.value;
+    } else if (instrumentSelect.value !== 'default') {
+        activeSoundType = instrumentSelect.value;
+    } else {
+        activeSoundType = waveformSelect.value;
+    }
+
+    const fileName = `chiptuned_${bpm}BPM_${activeSoundType}.mp3`;
+
+    const noteDurationPerColumn = 60 / bpm; // Duration of one column in seconds
+    const totalDuration = numCols * noteDurationPerColumn;
 
     const offlineAudioContext = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
         2, // Number of channels (stereo)
@@ -1066,40 +1505,39 @@ saveMp3Button.addEventListener('click', () => {
         audioContext.sampleRate // Sample rate
     );
 
-    let renderTime = 0;
-    for (let currentCol = 0; currentCol < numCols; currentCol++) {
-        for (let i = 0; i < numRows; i++) {
-            if (grid[i][currentCol]) {
-                const selectedSfx = sfxSelect.value;
-                const selectedInstrument = instrumentSelect.value;
+    for (let i = 0; i < numRows; i++) {
+        grid[i].forEach(note => {
+            const noteStartTime = note.start * noteDurationPerColumn;
+            const noteDuration = (note.end - note.start + 1) * noteDurationPerColumn;
 
-                if (selectedSfx) {
-                    playSFX(selectedSfx, renderTime, noteDuration, frequencies[i], offlineAudioContext);
-                } else if (selectedInstrument !== 'default') {
-                    playInstrument(selectedInstrument, frequencies[i], renderTime, noteDuration, offlineAudioContext);
-                } else {
-                    // Default waveform sound
-                    const oscillator = offlineAudioContext.createOscillator();
-                    const gainNode = offlineAudioContext.createGain();
+            const selectedSfx = sfxSelect.value;
+            const selectedInstrument = instrumentSelect.value;
 
-                    oscillator.type = waveformSelect.value;
-                    oscillator.frequency.setValueAtTime(frequencies[i], renderTime);
+            if (selectedSfx) {
+                playSFX(selectedSfx, noteStartTime, noteDuration, frequencies[i], offlineAudioContext);
+            } else if (selectedInstrument !== 'default') {
+                playInstrument(selectedInstrument, frequencies[i], noteStartTime, noteDuration, offlineAudioContext);
+            } else {
+                // Default waveform sound
+                const oscillator = offlineAudioContext.createOscillator();
+                const gainNode = offlineAudioContext.createGain();
 
-                    gainNode.gain.setValueAtTime(0.05, renderTime);
-                    gainNode.gain.exponentialRampToValueAtTime(0.0001, renderTime + noteDuration);
+                oscillator.type = waveformSelect.value;
+                oscillator.frequency.setValueAtTime(frequencies[i], noteStartTime);
 
-                    oscillator.connect(gainNode);
-                    gainNode.connect(offlineAudioContext.destination);
+                gainNode.gain.setValueAtTime(0.05, noteStartTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, noteStartTime + noteDuration);
 
-                    oscillator.start(renderTime);
-                    oscillator.stop(renderTime + noteDuration);
-                }
+                oscillator.connect(gainNode);
+                gainNode.connect(offlineAudioContext.destination);
+
+                oscillator.start(noteStartTime);
+                oscillator.stop(noteStartTime + noteDuration);
             }
-        }
-        renderTime += noteDuration;
+        });
     }
 
-    offlineAudioContext.startRendering().then(function(renderedBuffer) {
+    offlineAudioContext.startRendering().then(async function(renderedBuffer) {
         const mp3encoder = new lamejs.Mp3Encoder(2, renderedBuffer.sampleRate, 128); // 2 channels, sample rate, 128 kbps
         const mp3Data = [];
 
@@ -1135,17 +1573,43 @@ saveMp3Button.addEventListener('click', () => {
         }
 
         const blob = new Blob(mp3Data, { type: 'audio/mp3' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `chiptuned.mp3`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+
+        // Try to use the File System Access API
+        if ('showSaveFilePicker' in window) {
+            try {
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: fileName,
+                    types: [{
+                        description: 'MP3 Audio File',
+                        accept: { 'audio/mp3': ['.mp3'] },
+                    }],
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+            } catch (err) {
+                if (err.name !== 'AbortError') { // Ignore user aborting the dialog
+                    console.error('Error saving MP3 using File System Access API:', err);
+                    fallbackSaveMp3(blob, fileName);
+                }
+            }
+        } else {
+            // Fallback for browsers that do not support File System Access API
+            fallbackSaveMp3(blob, fileName);
+        }
 
     }).catch(function(err) {
         console.error('Rendering failed: ' + err);
-        alert('Error rendering audio: ' + err.message);
     });
 });
+
+function fallbackSaveMp3(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
