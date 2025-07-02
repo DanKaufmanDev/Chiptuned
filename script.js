@@ -17,6 +17,11 @@ const saveProjectButton = document.getElementById('save-project');
 const loadProjectButton = document.getElementById('load-project');
 const columnHighlight = document.getElementById('column-highlight');
 const bpmTextInput = document.getElementById('bpm-text-input');
+const addLayerButton = document.getElementById('add-layer');
+const layerListContainer = document.getElementById('layer-list');
+
+let layers = [];
+let activeLayerIndex = -1;
 
 const baseNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const baseFrequencies = [16.35, 17.32, 18.35, 19.45, 20.60, 21.83, 23.12, 24.50, 25.96, 27.50, 29.14, 30.87]; // C0 to B0
@@ -42,6 +47,154 @@ let currentNote = null; // Stores the note object being dragged/modified
 let dragTimeout = null;
 let currentProjectFileName = 'my_chiptuned_project.cht'; // New global variable to store the current project filename
 
+function createNewLayer(name) {
+    return {
+        id: Date.now(),
+        name: name,
+        grid: Array(numRows).fill(null).map(() => []),
+        instrument: 'default',
+        waveform: 'square',
+        sfx: '',
+        octave: 4
+    };
+}
+
+function deleteLayer(indexToDelete) {
+    if (layers.length <= 1) {
+        alert("Cannot delete the last layer.");
+        return;
+    }
+
+    layers.splice(indexToDelete, 1);
+
+    if (activeLayerIndex >= indexToDelete) {
+        activeLayerIndex = Math.max(0, activeLayerIndex - 1);
+    }
+
+    switchLayer(activeLayerIndex, true);
+}
+
+function renderLayerList() {
+    layerListContainer.innerHTML = '';
+    layers.forEach((layer, index) => {
+        const layerElement = document.createElement('div');
+        layerElement.classList.add('layer-item', 'p-2', 'mb-2');
+        if (index === activeLayerIndex) {
+            layerElement.classList.add('active-layer');
+        }
+
+        const layerNameContainer = document.createElement('div');
+        layerNameContainer.classList.add('flex', 'justify-between', 'items-center', 'mb-2');
+        layerNameContainer.style.position = 'relative'; // Ensure relative positioning for absolute children
+
+        const layerNameSpan = document.createElement('span');
+        layerNameSpan.textContent = layer.name;
+        layerNameSpan.classList.add('font-bold', 'cursor-pointer', 'flex-grow', 'layer-name');
+        layerNameContainer.appendChild(layerNameSpan);
+
+        const layerNameInput = document.createElement('input');
+        layerNameInput.type = 'text';
+        layerNameInput.value = layer.name;
+        layerNameInput.classList.add('hidden', 'bg-gray-700', 'text-white', 'text-sm', 'font-bold', 'rounded', 'px-1');
+        layerNameInput.style.position = 'absolute';
+        layerNameInput.style.top = '0';
+        layerNameInput.style.left = '0';
+        layerNameInput.style.width = 'calc(100% - 24px)'; // Account for delete button width + margin
+        layerNameInput.style.height = '100%';
+        layerNameInput.style.zIndex = '2'; // Ensure input is above span when visible
+        layerNameContainer.appendChild(layerNameInput);
+
+        layerNameSpan.addEventListener('click', () => {
+            layerNameSpan.classList.add('hidden');
+            layerNameInput.classList.remove('hidden');
+            layerNameInput.focus();
+            layerNameInput.select();
+        });
+
+        const saveLayerName = () => {
+            let newName = layerNameInput.value.trim();
+            if (newName === '') {
+                newName = `Layer ${index + 1}`;
+            }
+            layers[index].name = newName;
+            renderLayerList(); // Re-render to update the name and hide input
+        };
+
+        layerNameInput.addEventListener('blur', saveLayerName);
+        layerNameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                saveLayerName();
+            } else if (e.key === 'Escape') {
+                renderLayerList(); // Re-render to hide input without saving
+            }
+        });
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'X';
+        deleteBtn.classList.add('delete-layer-btn');
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent the layer from being selected when deleting
+            deleteLayer(index);
+        });
+        layerNameContainer.appendChild(deleteBtn);
+
+        layerElement.appendChild(layerNameContainer);
+
+        const miniGrid = document.createElement('div');
+        miniGrid.classList.add('layer-item-grid');
+        miniGrid.style.display = 'grid';
+        miniGrid.style.gridTemplateColumns = `repeat(${numCols}, 1fr)`;
+        miniGrid.style.gridTemplateRows = `repeat(${numRows}, 1fr)`;
+        miniGrid.style.gap = '1px';
+        miniGrid.style.height = '60px';
+        miniGrid.style.border = '1px solid #555';
+
+        for (let i = 0; i < numRows; i++) {
+            for (let j = 0; j < numCols; j++) {
+                const cell = document.createElement('div');
+                cell.classList.add('layer-item-grid-cell');
+                const noteExists = layer.grid[i].some(note => j >= note.start && j <= note.end);
+                if (noteExists) {
+                    cell.style.backgroundColor = 'var(--active-cell-bg)';
+                } else {
+                    cell.style.backgroundColor = '#c0c0c0';
+                }
+                miniGrid.appendChild(cell);
+            }
+        }
+        layerElement.appendChild(miniGrid);
+
+        layerElement.addEventListener('click', () => {
+            switchLayer(index);
+        });
+        layerListContainer.appendChild(layerElement);
+    });
+}
+
+function switchLayer(index, force = false) {
+    if (activeLayerIndex === index && !force) return;
+    activeLayerIndex = index;
+    renderActiveLayer();
+    renderLayerList();
+}
+
+function renderActiveLayer() {
+    const activeLayer = layers[activeLayerIndex];
+    grid = activeLayer.grid;
+    instrumentSelect.value = activeLayer.instrument;
+    waveformSelect.value = activeLayer.waveform;
+    sfxSelect.value = activeLayer.sfx;
+    currentOctave = activeLayer.octave;
+    updateNotesAndFrequencies();
+    updateGridDisplay();
+}
+
+function addLayer() {
+    const newLayer = createNewLayer(`Layer ${layers.length + 1}`);
+    layers.push(newLayer);
+    switchLayer(layers.length - 1);
+}
+
 function toggleSingleNote(row, col) {
     const existingNoteIndex = grid[row].findIndex(note => note.start === col && note.end === col);
     if (existingNoteIndex !== -1) {
@@ -51,7 +204,10 @@ function toggleSingleNote(row, col) {
         // Note does not exist, add it
         grid[row].push({ start: col, end: col });
     }
-    requestAnimationFrame(updateGridDisplay);
+    requestAnimationFrame(() => {
+        updateGridDisplay();
+        renderLayerList();
+    });
 }
 
 let isPlaying = false;
@@ -100,9 +256,6 @@ function createGrid() {
     // Clear existing grid and labels before recreating
     gridContainer.innerHTML = '';
     noteLabelsContainer.innerHTML = '';
-
-    // Reset the grid array
-    grid = Array(numRows).fill(null).map(() => []);
 
     // Hide the column highlight when the grid is created or recreated
     columnHighlight.classList.remove('block');
@@ -205,29 +358,31 @@ function nextNote() {
 }
 
 function scheduleNote(beatNumber, time) {
-    for (let i = 0; i < numRows; i++) {
-        // Find notes that start at the current beatNumber
-        const notesToPlay = grid[i].filter(note => beatNumber === note.start);
+    layers.forEach(layer => {
+        for (let i = 0; i < numRows; i++) {
+            // Find notes that start at the current beatNumber
+            const notesToPlay = layer.grid[i].filter(note => beatNumber === note.start);
 
-        notesToPlay.forEach(note => {
-            const noteDurationInBeats = note.end - note.start + 1;
-            const noteDurationInSeconds = noteDurationInBeats * (60.0 / parseFloat(bpmInput.value));
+            notesToPlay.forEach(note => {
+                const noteDurationInBeats = note.end - note.start + 1;
+                const noteDurationInSeconds = noteDurationInBeats * (60.0 / parseFloat(bpmInput.value));
 
-            const selectedSfx = sfxSelect.value;
-            if (selectedSfx) {
-                playSFX(selectedSfx, time, noteDurationInSeconds, frequencies[i]); // Pass frequency to SFX
-            } else {
-                const selectedInstrument = instrumentSelect.value;
-                if (selectedInstrument === 'default') {
-                    const { oscillator, gainNode } = playSound(waveformSelect.value, frequencies[i], time, noteDurationInSeconds);
-                    playingNodes.push({ oscillator, gainNode });
+                const selectedSfx = layer.sfx;
+                if (selectedSfx) {
+                    playSFX(selectedSfx, time, noteDurationInSeconds, frequencies[i]); // Pass frequency to SFX
                 } else {
-                    const { oscillator, gainNode } = playInstrument(selectedInstrument, frequencies[i], time, noteDurationInSeconds);
-                    playingNodes.push({ oscillator, gainNode });
+                    const selectedInstrument = layer.instrument;
+                    if (selectedInstrument === 'default') {
+                        const { oscillator, gainNode } = playSound(layer.waveform, frequencies[i], time, noteDurationInSeconds);
+                        playingNodes.push({ oscillator, gainNode });
+                    } else {
+                        const { oscillator, gainNode } = playInstrument(selectedInstrument, frequencies[i], time, noteDurationInSeconds);
+                        playingNodes.push({ oscillator, gainNode });
+                    }
                 }
-            }
-        });
-    }
+            });
+        }
+    });
 }
 
 function scheduler() {
@@ -295,8 +450,9 @@ function stopPlayback(clearGridFlag = false) {
     highlightedCells.forEach(cell => cell.classList.remove('highlighted'));
 
     if (clearGridFlag) {
-        grid = Array(numRows).fill(null).map(() => []); // Clear the grid data
-        updateGridDisplay(); // Update the visual display
+        layers[activeLayerIndex].grid = Array(numRows).fill(null).map(() => []); // Clear the active layer's grid data
+        renderActiveLayer(); // Re-render the main grid
+        renderLayerList(); // Re-render the layer list
     }
 }
 
@@ -448,6 +604,7 @@ function handleMouseUp() {
 
     // After drag, re-render the entire grid to ensure correctness
     requestAnimationFrame(updateGridDisplay);
+    renderLayerList();
 
     // Clear lastRenderedNote after drag is complete
     lastRenderedNote = null;
@@ -1192,8 +1349,9 @@ bpmTextInput.addEventListener('keydown', (e) => {
 
 
 clearGridButton.addEventListener('click', () => {
-    grid = Array(numRows).fill(null).map(() => []); // Clear the grid data
-    requestAnimationFrame(updateGridDisplay); // Update the visual display
+    layers[activeLayerIndex].grid = Array(numRows).fill(null).map(() => []); // Clear the active layer's grid data
+    renderActiveLayer(); // Re-render the main grid
+    renderLayerList(); // Re-render the layer list
     columnHighlight.classList.remove('block');
     columnHighlight.classList.add('hidden');
 });
@@ -1203,18 +1361,17 @@ randomGridButton.addEventListener('click', () => {
     // Random Waveform
     const waveformOptions = waveformSelect.options;
     const randomWaveformIndex = Math.floor(Math.random() * waveformOptions.length);
-    waveformSelect.value = waveformOptions[randomWaveformIndex].value;
+    layers[activeLayerIndex].waveform = waveformOptions[randomWaveformIndex].value;
 
     // Reset Instrument and SFX dropdowns
-    instrumentSelect.value = 'default';
-    sfxSelect.value = '';
+    layers[activeLayerIndex].instrument = 'default';
+    layers[activeLayerIndex].sfx = '';
 
     // Random Octave
-    currentOctave = Math.floor(Math.random() * 3) + 3; // Octaves 3, 4, or 5
-    updateNotesAndFrequencies();
+    layers[activeLayerIndex].octave = Math.floor(Math.random() * 3) + 3; // Octaves 3, 4, or 5
 
     // --- 2. Clear the grid ---
-    grid = Array(numRows).fill(null).map(() => []);
+    layers[activeLayerIndex].grid = Array(numRows).fill(null).map(() => []);
 
     // --- 3. Generate Music ---
     // Define multiple chord progressions
@@ -1245,7 +1402,7 @@ randomGridButton.addEventListener('click', () => {
         // Add a bass note for each chord on the first beat
         const bassNoteRow = chord.root;
         const bassNote = { start: startCol, end: startCol };
-        grid[bassNoteRow].push(bassNote);
+        layers[activeLayerIndex].grid[bassNoteRow].push(bassNote);
         lastGeneratedNoteInRow[bassNoteRow] = bassNote;
 
         // Generate arpeggiated notes for the chord duration
@@ -1257,11 +1414,12 @@ randomGridButton.addEventListener('click', () => {
             const noteRow = chord.notes[noteIndex];
 
             // Always generate single notes
-            grid[noteRow].push({ start: col, end: col });
+            layers[activeLayerIndex].grid[noteRow].push({ start: col, end: col });
         }
     }
     setTimeout(() => {
-        requestAnimationFrame(updateGridDisplay); // Update the visual display after generating notes
+        renderActiveLayer();
+        renderLayerList();
     }, 0);
 
     // --- 4. Set random BPM ---
@@ -1286,7 +1444,9 @@ octaveUpButton.addEventListener('click', () => {
 
 document.addEventListener('DOMContentLoaded', () => {
     createGrid();
+    addLayer(); // Create initial layer
     bpmValueSpan.textContent = bpmInput.value;
+    adjustLayerPanelHeight();
 
     // Enable the saveMp3Button only if lamejs is defined
     if (typeof lamejs !== 'undefined') {
@@ -1295,6 +1455,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn("lamejs is not defined. 'Save as MP3' button will remain disabled.");
     }
 
+    addLayerButton.addEventListener('click', addLayer);
     saveProjectButton.addEventListener('click', saveProject);
     loadProjectButton.addEventListener('click', () => {
         const input = document.createElement('input');
@@ -1321,12 +1482,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function saveProject() {
     const projectData = {
-        grid: grid,
+        layers: layers,
         bpm: bpmInput.value,
-        octave: currentOctave,
-        waveform: waveformSelect.value,
-        instrument: instrumentSelect.value,
-        sfx: sfxSelect.value
     };
 
     const dataStr = JSON.stringify(projectData);
@@ -1459,7 +1616,7 @@ async function loadProject(data) {
         const loadedData = JSON.parse(decodedDataStr);
 
         // Security check: Ensure all expected fields are present and no extra fields
-        const expectedFields = ['grid', 'bpm', 'octave', 'waveform', 'instrument', 'sfx'];
+        const expectedFields = ['layers', 'bpm'];
         const actualFields = Object.keys(loadedData);
 
         for (const field of expectedFields) {
@@ -1474,47 +1631,16 @@ async function loadProject(data) {
             }
         }
 
-        // Clear current grid
-        grid = Array(numRows).fill(null).map(() => []);
+        layers = loadedData.layers;
+        activeLayerIndex = 0;
+        renderActiveLayer();
+        renderLayerList();
 
-        // Load grid data
-        if (loadedData.grid && Array.isArray(loadedData.grid)) {
-            loadedData.grid.forEach((row, rowIndex) => {
-                if (rowIndex < numRows && Array.isArray(row)) {
-                    row.forEach(note => {
-                        if (typeof note.start === 'number' && typeof note.end === 'number') {
-                            grid[rowIndex].push({ start: note.start, end: note.end });
-                        }
-                    });
-                }
-            });
-        }
 
         // Load BPM
         if (typeof loadedData.bpm === 'string' || typeof loadedData.bpm === 'number') {
             bpmInput.value = loadedData.bpm;
             bpmValueSpan.textContent = loadedData.bpm;
-        }
-
-        // Load Octave
-        if (typeof loadedData.octave === 'number') {
-            currentOctave = loadedData.octave;
-            updateNotesAndFrequencies(); // Re-render note labels and frequencies
-        }
-
-        // Load Waveform
-        if (typeof loadedData.waveform === 'string') {
-            waveformSelect.value = loadedData.waveform;
-        }
-
-        // Load Instrument
-        if (typeof loadedData.instrument === 'string') {
-            instrumentSelect.value = loadedData.instrument;
-        }
-
-        // Load SFX
-        if (typeof loadedData.sfx === 'string') {
-            sfxSelect.value = loadedData.sfx;
         }
 
         updateGridDisplay(); // Update the visual grid based on loaded data
@@ -1654,3 +1780,15 @@ function fallbackSaveMp3(blob, fileName) {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 }
+
+function adjustLayerPanelHeight() {
+    const mainAppWindow = document.getElementById('main-app-window');
+    const layerContainer = document.getElementById('layer-container');
+    if (mainAppWindow && layerContainer) {
+        const mainHeight = mainAppWindow.offsetHeight;
+        layerContainer.style.height = `${mainHeight * 0.95}px`;
+    }
+}
+
+window.addEventListener('resize', adjustLayerPanelHeight);
+document.addEventListener('DOMContentLoaded', adjustLayerPanelHeight);

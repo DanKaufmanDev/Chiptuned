@@ -119,3 +119,71 @@ body {
     background: #ffffff; /* blue-400 */
     cursor: pointer;
 }
+
+.layer-item {
+    padding: 0.5rem;
+    border: 2px solid var(--border-color-dark);
+    background-color: #a0a0a0;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+}
+
+.layer-item.active-layer {
+    background-color: #6a6a6a; /* Darker than #a0a0a0, lighter than #757575 6a6a6a(new)*/
+    color: white;
+    border-color: var(--border-color-light);
+}
+
+.layer-item-grid {
+    background-color: #808080;
+    overflow: hidden;
+}
+
+#layer-list {
+    overflow-y: auto;
+    padding-right: 0.5rem; /* Add padding for scrollbar spacing */
+}
+
+/* Custom Scrollbar for Webkit browsers */
+#layer-list::-webkit-scrollbar {
+    width: 12px;
+}
+
+#layer-list::-webkit-scrollbar-track {
+    background: #4a5568; /* Match BPM slider background */
+    border-radius: 10px;
+}
+
+#layer-list::-webkit-scrollbar-thumb {
+    background-color: #ffffff; /* Match BPM slider thumb color */
+    border-radius: 10px;
+    border: 3px solid #4a5568; /* Creates padding around thumb */
+}
+
+.delete-layer-btn {
+    width: 20px;
+    height: 20px;
+    background-color: #333333; /* Dark grey/black */
+    color: #ffffff; /* White X */
+    border: 1px solid var(--border-color-light);
+    border-right-color: var(--border-color-dark);
+    border-bottom-color: var(--border-color-dark);
+    font-size: 12px;
+    line-height: 20px; /* Adjusted to match button height for vertical centering */
+    text-align: center;
+    padding-left: 1px; /* Nudge X to the right by 1px */
+    cursor: pointer;
+    margin-left: 0.5rem; /* Small gap from layer name */
+}
+
+.delete-layer-btn:active {
+    border: 1px solid var(--border-color-dark);
+    border-right-color: var(--border-color-light);
+    border-bottom-color: var(--border-color-light);
+}
+
+.layer-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
