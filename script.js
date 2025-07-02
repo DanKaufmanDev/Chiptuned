@@ -16,7 +16,7 @@ const saveMp3Button = document.getElementById('save-mp3');
 const columnHighlight = document.getElementById('column-highlight');
 
 const baseNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const baseFrequencies = [261.63, 277.18, 293.66, 311.13, 329.63, 349.23, 369.99, 392.00, 415.30, 440.00, 466.16, 493.88]; // C4 to B4
+const baseFrequencies = [16.35, 17.32, 18.35, 19.45, 20.60, 21.83, 23.12, 24.50, 25.96, 27.50, 29.14, 30.87]; // C0 to B0
 
 let currentOctave = 4; // Starting octave
 let notes = [];
@@ -53,7 +53,7 @@ function updateNotesAndFrequencies() {
         const noteName = baseNotes[i] + currentOctave;
         notes.push(noteName);
         // Calculate frequency for the current octave
-        const frequency = baseFrequencies[i] * Math.pow(2, (currentOctave - 4)); // Assuming baseFrequencies are for C4-B4
+        const frequency = baseFrequencies[i] * Math.pow(2, currentOctave);
         frequencies.push(frequency);
 
         const label = document.createElement('div');
@@ -65,7 +65,7 @@ function updateNotesAndFrequencies() {
         noteLabelsContainer.appendChild(label);
     }
     if (frequencies.length > 0) {
-        baseNoteFrequencyForSFX = frequencies[0];
+        baseNoteFrequencyForSFX = baseFrequencies[0];
     }
 }
 
@@ -309,69 +309,152 @@ function playInstrument(instrument, frequency, time, duration, context = audioCo
     let oscillator2, octUpOscillator, octDownOscillator, fluteVibratoLFO, fluteVibratoGain, vibratoLFO, vibratoGain, filter;
 
     switch (instrument) {
-        case 'piano':
-            oscillator = context.createOscillator();
-            oscillator2 = context.createOscillator(); // Second oscillator for richness
-            gainNode = context.createGain();
+        case 'piano': {
+            const masterGain = context.createGain();
+            const filter = context.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.Q.setValueAtTime(3.5, time); // Increased Q for more resonance
 
-            oscillator.type = 'triangle';
-            oscillator.frequency.setValueAtTime(frequency, time);
+            // Dynamic filter for hammer and decay - more pronounced sweep
+            filter.frequency.setValueAtTime(8000, time); // Start very bright
+            filter.frequency.exponentialRampToValueAtTime(frequency * 1.5, time + noteDuration * 1.8);
 
-            oscillator2.type = 'triangle';
-            oscillator2.frequency.setValueAtTime(frequency * 1.002, time); // Slightly detuned for fullness
+            // Main volume envelope - slightly longer decay
+            masterGain.gain.setValueAtTime(0, time);
+            masterGain.gain.linearRampToValueAtTime(0.05, time + 0.01);
+            masterGain.gain.exponentialRampToValueAtTime(0.15, time + 0.5);
+            masterGain.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 3);
 
-            // ADSR envelope for grand piano (sharp attack, quick decay to sustain, long release)
-            gainNode.gain.setValueAtTime(0.9, time); // Stronger initial attack
-            gainNode.gain.linearRampToValueAtTime(0.6, time + 0.02); // Very fast initial decay to a higher sustain level
-            gainNode.gain.linearRampToValueAtTime(0.6, time + noteDuration * 0.5); // Hold sustain for half the note duration
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 2); // Longer, resonant release
+            const oscillators = [];
 
-            oscillator.connect(gainNode);
-            oscillator2.connect(gainNode); // Connect both oscillators
-            gainNode.connect(context.destination);
+            // Multi-string simulation (2 triangles, 1 filtered saw for richness)
+            const coreWaveforms = ['triangle', 'triangle', 'sawtooth'];
+            for (let i = 0; i < coreWaveforms.length; i++) {
+                const osc = context.createOscillator();
+                osc.type = coreWaveforms[i];
+                // Detune each string slightly for a natural chorus
+                osc.detune.setValueAtTime((i - 1) * 3 + (Math.random() - 0.5) * 2, time);
 
-            oscillator.start(time);
-            oscillator2.start(time);
-            oscillator.stop(time + noteDuration * 2);
-            oscillator2.stop(time + noteDuration * 2); // Stop both oscillators
-            break;
-        case 'organ':
-            // Main oscillator
-            oscillator = context.createOscillator();
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(frequency, time);
+                // Hammer pitch attack - quick and subtle
+                osc.frequency.setValueAtTime(frequency * 1.008, time);
+                osc.frequency.exponentialRampToValueAtTime(frequency, time + 0.1);
 
-            // Octave up oscillator
-            octUpOscillator = context.createOscillator();
-            octUpOscillator.type = 'sine';
-            octUpOscillator.frequency.setValueAtTime(frequency * 2, time);
+                if (osc.type === 'sawtooth') {
+                    // Heavily filter the sawtooth to prevent buzz, keeping its complexity
+                    const sawFilter = context.createBiquadFilter();
+                    sawFilter.type = 'lowpass';
+                    // Frequency-dependent cutoff for sawtooth - lower for low notes
+                    sawFilter.frequency.setValueAtTime(Math.min(frequency * 3, 2000), time); // Cap at 2000Hz
+                    osc.connect(sawFilter);
+                    sawFilter.connect(filter);
+                } else {
+                    osc.connect(filter);
+                }
 
-            // Octave down oscillator
-            octDownOscillator = context.createOscillator();
-            octDownOscillator.type = 'sine';
-            octDownOscillator.frequency.setValueAtTime(frequency / 2, time);
+                osc.start(time);
+                osc.stop(time + noteDuration * 3);
+                oscillators.push(osc);
+            }
 
-            gainNode = context.createGain();
+            // Sympathetic Resonance (Octave + Fifth) - subtle and long-decaying
+            const resonanceFrequencies = [frequency * 2, frequency * 1.5];
+            for (const resFreq of resonanceFrequencies) {
+                const resOsc = context.createOscillator();
+                resOsc.type = 'sine';
+                resOsc.frequency.setValueAtTime(resFreq, time);
+                const resGain = context.createGain();
+                resGain.gain.setValueAtTime(0, time);
+                resGain.gain.linearRampToValueAtTime(0.05, time + 0.4); // Slower, more subtle fade-in
+                resGain.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 2.5);
+                resOsc.connect(resGain);
+                resGain.connect(masterGain);
+                resOsc.start(time);
+                resOsc.stop(time + noteDuration * 3);
+                oscillators.push(resOsc);
+            }
 
-            // ADSR envelope for organ (quick attack, long sustain, long release)
-            gainNode.gain.setValueAtTime(0.4, time); // Quick attack
-            gainNode.gain.linearRampToValueAtTime(0.4, time + 0.01); // Immediate sustain
-            gainNode.gain.linearRampToValueAtTime(0.4, time + noteDuration * 0.9); // Hold sustain
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.5); // Long release
+            filter.connect(masterGain);
+            masterGain.connect(context.destination);
 
-            oscillator.connect(gainNode);
-            octUpOscillator.connect(gainNode);
-            octDownOscillator.connect(gainNode);
-            gainNode.connect(context.destination);
+            return {
+                oscillator: {
+                    stop: (stopTime) => oscillators.forEach(o => o.stop(stopTime))
+                },
+                gainNode: masterGain
+            };
+        }
+        case 'organ': {
+            const oscillators = [];
+            const masterGain = context.createGain();
+            const filter = context.createBiquadFilter();
+            filter.type = 'lowpass';
+            // A gentle filter to remove high-end graininess, cutoff is frequency dependent
+            filter.frequency.setValueAtTime(Math.min(8000, frequency * 8), time);
+            filter.Q.setValueAtTime(2.0, time); // Increased Q for more pronounced smoothing
 
-            oscillator.start(time);
-            octUpOscillator.start(time);
-            octDownOscillator.start(time);
+            // --- Organ Harmonic Series (Drawbars) ---
+            const harmonicRatios = [
+                { ratio: 1, gain: 0.6, type: 'sine' },   // 8' Principal (fundamental)
+                { ratio: 2, gain: 0.4, type: 'sine' },   // 4' Octave
+                { ratio: 3, gain: 0.2, type: 'sine' },   // 2 2/3' Quint (fifth harmonic)
+                { ratio: 4, gain: 0.2, type: 'sine' },   // 2' Superoctave
+                { ratio: 0.5, gain: 0.2, type: 'sine' }  // 16' Sub-octave
+            ];
 
-            oscillator.stop(time + noteDuration * 1.5);
-            octUpOscillator.stop(time + noteDuration * 1.5);
-            octDownOscillator.stop(time + noteDuration * 1.5);
-            break;
+            // --- Slow Vibrato ---
+            const vibratoLFO = context.createOscillator();
+            vibratoLFO.type = 'sine';
+            vibratoLFO.frequency.setValueAtTime(4, time); // Slightly faster vibrato for more character
+            const vibratoGain = context.createGain();
+            // Capping vibrato depth to prevent high-frequency graininess
+            const vibratoDepth = Math.min(frequency * 0.004, 2); // Further reduced vibrato depth, capped at 2Hz
+            vibratoGain.gain.setValueAtTime(vibratoDepth, time);
+            vibratoLFO.connect(vibratoGain);
+
+            for (const harmonic of harmonicRatios) {
+                const osc = context.createOscillator();
+                osc.type = harmonic.type;
+                osc.frequency.setValueAtTime(frequency * harmonic.ratio, time);
+                // Subtle random detune for organic feel
+                osc.detune.setValueAtTime((Math.random() - 0.5) * 0.2, time); // Further reduced detune
+
+                // Apply vibrato to each oscillator's frequency
+                vibratoGain.connect(osc.frequency);
+
+                const oscGain = context.createGain();
+                oscGain.gain.setValueAtTime(harmonic.gain, time);
+
+                osc.connect(oscGain);
+                oscGain.connect(filter); // Connect to filter instead of masterGain
+
+                osc.start(time);
+                osc.stop(time + noteDuration * 4); // Much longer sustain for organic decay
+                oscillators.push(osc);
+            }
+
+            // ADSR envelope for organ (slow attack, long sustain, long release)
+            masterGain.gain.setValueAtTime(0, time); // Start from silence
+            masterGain.gain.linearRampToValueAtTime(0.15, time + 0.08); // Further reduced attack gain
+            masterGain.gain.linearRampToValueAtTime(0.5, time + noteDuration * 1.5); // Long sustain
+            masterGain.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 4); // Much longer release for organic decay
+
+            filter.connect(masterGain); // Connect filter to master gain
+            masterGain.connect(context.destination);
+
+            vibratoLFO.start(time);
+            vibratoLFO.stop(time + noteDuration * 2);
+
+            return {
+                oscillator: {
+                    stop: (stopTime) => {
+                        oscillators.forEach(o => o.stop(stopTime));
+                        vibratoLFO.stop(stopTime);
+                    }
+                },
+                gainNode: masterGain
+            };
+        }
+        break;
         case 'synth_lead':
             oscillator = context.createOscillator();
             oscillator2 = context.createOscillator(); // Second oscillator for detune
@@ -384,9 +467,9 @@ function playInstrument(instrument, frequency, time, duration, context = audioCo
             oscillator2.frequency.setValueAtTime(frequency * 1.005, time); // Slightly detuned
 
             // ADSR envelope for gain
-            gainNode.gain.setValueAtTime(0.6, time); // Stronger attack
-            gainNode.gain.linearRampToValueAtTime(0.4, time + 0.1); // Quick decay to sustain
-            gainNode.gain.linearRampToValueAtTime(0.4, time + noteDuration * 0.7); // Sustain
+            gainNode.gain.setValueAtTime(0.1, time); // Stronger attack
+            gainNode.gain.linearRampToValueAtTime(0.3, time + 0.1); // Quick decay to sustain
+            gainNode.gain.linearRampToValueAtTime(0.3, time + noteDuration * 0.7); // Sustain
             gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.2); // Longer release
 
             oscillator.connect(gainNode);
@@ -398,47 +481,112 @@ function playInstrument(instrument, frequency, time, duration, context = audioCo
             oscillator.stop(time + noteDuration * 1.2);
             oscillator2.stop(time + noteDuration * 1.2);
             break;
-        case 'bass':
-            oscillator = context.createOscillator();
-            gainNode = context.createGain();
-            const filter = context.createBiquadFilter(); // Add a low-pass filter
-
-            oscillator.type = 'square';
-            oscillator.frequency.setValueAtTime(frequency / 2, time); // Lower octave for bass
-
+        case 'bass': {
+            const masterGain = context.createGain();
+            const filter = context.createBiquadFilter();
             filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(frequency * 1.5, time); // Cutoff frequency relative to note
-            filter.Q.setValueAtTime(1, time); // Resonance
+            filter.Q.setValueAtTime(0.8, time); // Subtle resonance
 
-            gainNode.gain.setValueAtTime(0.9, time); // Stronger initial gain
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + 0.3); // Faster, punchier decay
+            // Filter envelope for tone shaping
+            filter.frequency.setValueAtTime(frequency * 3, time); // Start bright
+            filter.frequency.exponentialRampToValueAtTime(frequency * 0.8, time + noteDuration * 0.5); // Mellow out
 
-            oscillator.connect(filter); // Connect oscillator to filter
-            filter.connect(gainNode); // Connect filter to gain node
-            gainNode.connect(context.destination);
+            // Main volume envelope
+            masterGain.gain.setValueAtTime(0, time);
+            masterGain.gain.linearRampToValueAtTime(0.15, time + 0.01); // Quick attack
+            masterGain.gain.exponentialRampToValueAtTime(0.3, time + 0.1); // Initial decay
+            masterGain.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.5); // Longer sustain
 
-            oscillator.start(time);
-            oscillator.stop(time + 0.3); // Shorter duration for punch
-            break;
+            const oscillators = [];
+
+            // Primary oscillator (square wave for punch)
+            const mainOsc = context.createOscillator();
+            mainOsc.type = 'square';
+            // Pitch bend for pluck effect
+            mainOsc.frequency.setValueAtTime(frequency * 1.005, time);
+            mainOsc.frequency.exponentialRampToValueAtTime(frequency, time + 0.05);
+            mainOsc.connect(filter);
+            mainOsc.start(time);
+            mainOsc.stop(time + noteDuration * 1.5);
+            oscillators.push(mainOsc);
+
+            // Second oscillator (triangle for richness and harmonics)
+            const subOsc = context.createOscillator();
+            subOsc.type = 'triangle';
+            subOsc.frequency.setValueAtTime(frequency * 0.5, time); // One octave down
+            const subGain = context.createGain();
+            subGain.gain.setValueAtTime(0.4, time); // Lower volume
+            subOsc.connect(subGain);
+            subGain.connect(filter);
+            subOsc.start(time);
+            subOsc.stop(time + noteDuration * 1.5);
+            oscillators.push(subOsc);
+
+            // Pluck noise
+            const pluckNoise = context.createBufferSource();
+            const pluckNoiseFilter = context.createBiquadFilter();
+            pluckNoiseFilter.type = 'highpass';
+            pluckNoiseFilter.frequency.setValueAtTime(1000, time);
+            pluckNoiseFilter.Q.setValueAtTime(5, time);
+
+            const pluckNoiseBufferSize = context.sampleRate * 0.01;
+            const pluckNoiseBuffer = context.createBuffer(1, pluckNoiseBufferSize, context.sampleRate);
+            const pluckNoiseOutput = pluckNoiseBuffer.getChannelData(0);
+            for (let i = 0; i < pluckNoiseBufferSize; i++) {
+                pluckNoiseOutput[i] = Math.random() * 2 - 1;
+            }
+            pluckNoise.buffer = pluckNoiseBuffer;
+            const pluckNoiseGain = context.createGain();
+            pluckNoiseGain.gain.setValueAtTime(0.3, time);
+            pluckNoiseGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+            pluckNoise.connect(pluckNoiseFilter);
+            pluckNoiseFilter.connect(pluckNoiseGain);
+            pluckNoiseGain.connect(masterGain);
+
+            // Body resonance (subtle)
+            const bodyResonance = context.createOscillator();
+            bodyResonance.type = 'sine';
+            bodyResonance.frequency.setValueAtTime(frequency * 0.25, time); // Two octaves down
+            const bodyGain = context.createGain();
+            bodyGain.gain.setValueAtTime(0.1, time);
+            bodyGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.3);
+            bodyResonance.connect(bodyGain);
+            bodyGain.connect(masterGain);
+
+            filter.connect(masterGain);
+            masterGain.connect(context.destination);
+
+            pluckNoise.start(time);
+            bodyResonance.start(time);
+            bodyResonance.stop(time + 0.3);
+
+            return {
+                oscillator: {
+                    stop: (stopTime) => oscillators.forEach(o => o.stop(stopTime))
+                },
+                gainNode: masterGain
+            };
+        }
         case 'flute':
             oscillator = context.createOscillator();
             gainNode = context.createGain();
             oscillator.type = 'sine';
             oscillator.frequency.setValueAtTime(frequency, time);
 
-            // White noise for breathiness
+            // White noise for breathiness - reduced and shorter
             const whiteNoise = context.createBufferSource();
-            const bufferSize = context.sampleRate * 2; // A few seconds of noise
+            const bufferSize = context.sampleRate * 0.5; // Shorter noise duration
             const noiseBuffer = context.createBuffer(1, bufferSize, context.sampleRate);
             const output = noiseBuffer.getChannelData(0);
             for (let i = 0; i < bufferSize; i++) {
                 output[i] = Math.random() * 2 - 1; // White noise
             }
             whiteNoise.buffer = noiseBuffer;
-            whiteNoise.loop = true;
+            whiteNoise.loop = false; // No loop
 
             const noiseGain = context.createGain();
-            noiseGain.gain.setValueAtTime(0.02, time); // Very subtle noise level
+            noiseGain.gain.setValueAtTime(0.01, time); // Even more subtle noise level
+            noiseGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.1); // Quick decay
 
             whiteNoise.connect(noiseGain);
             noiseGain.connect(gainNode); // Mix noise with main gain
@@ -456,7 +604,7 @@ function playInstrument(instrument, frequency, time, duration, context = audioCo
 
             // ADSR envelope for gain (softer attack, longer release for floaty sound)
             gainNode.gain.setValueAtTime(0.0001, time); // Start very low
-            gainNode.gain.linearRampToValueAtTime(0.3, time + 0.1); // Gentle attack
+            gainNode.gain.linearRampToValueAtTime(0.075, time + 0.1); // Gentle attack
             gainNode.gain.linearRampToValueAtTime(0.3, time + noteDuration * 0.8); // Sustain
             gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.5); // Longer, floaty release
 
@@ -464,92 +612,191 @@ function playInstrument(instrument, frequency, time, duration, context = audioCo
             gainNode.connect(context.destination);
 
             oscillator.start(time);
-            fluteVibratoLFO.start(time); // Start vibrato LFO
-            whiteNoise.start(time); // Start white noise
+            fluteVibratoLFO.start(time);
+            whiteNoise.start(time);
 
             oscillator.stop(time + noteDuration * 1.5);
             fluteVibratoLFO.stop(time + noteDuration * 1.5);
-            whiteNoise.stop(time + noteDuration * 1.5); // Stop white noise
+            whiteNoise.stop(time + 0.15); // Stop white noise quickly
             break;
         case 'trumpet':
             oscillator = context.createOscillator();
             gainNode = context.createGain();
-            const trumpetFilter = context.createBiquadFilter(); // Add a low-pass filter
+            const trumpetFilter = context.createBiquadFilter();
 
+            // Main oscillator for the brassy tone
             oscillator.type = 'sawtooth';
-
-            // Pitch bend for brassy attack
-            oscillator.frequency.setValueAtTime(frequency * 0.98, time); // Start slightly below target
-            oscillator.frequency.linearRampToValueAtTime(frequency, time + 0.05); // Rapid ramp up to target frequency
-
-            // Vibrato LFO (already implemented, keeping it)
-            vibratoLFO = context.createOscillator();
-            vibratoLFO.type = 'sine';
-            vibratoLFO.frequency.setValueAtTime(6, time); // 6 Hz vibrato rate
-
-            vibratoGain = context.createGain();
-            vibratoGain.gain.setValueAtTime(frequency * 0.01, time); // Vibrato depth (e.g., 1% of frequency)
-
-            vibratoLFO.connect(vibratoGain);
-            vibratoGain.connect(oscillator.frequency); // Connect LFO to oscillator frequency
-
-            // Filter settings for brassy tone
-            trumpetFilter.type = 'lowpass';
-            trumpetFilter.frequency.setValueAtTime(frequency * 2, time); // Cutoff frequency (adjust as needed)
-            trumpetFilter.Q.setValueAtTime(0.5, time); // Resonance (adjust as needed)
-
-            // ADSR envelope for gain (sharper attack, more defined sustain)
-            gainNode.gain.setValueAtTime(0.8, time); // Sharper initial attack
-            gainNode.gain.linearRampToValueAtTime(0.5, time + 0.08); // Slightly slower ramp down to sustain
-            gainNode.gain.linearRampToValueAtTime(0.5, time + noteDuration * 1.2); // Longer Sustain
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.5); // Longer release
-
-            oscillator.connect(trumpetFilter); // Connect oscillator to filter
-            trumpetFilter.connect(gainNode); // Connect filter to gain node
-            gainNode.connect(context.destination);
-
-            oscillator.start(time);
-            vibratoLFO.start(time);
-            oscillator.stop(time + noteDuration * 1.5);
-            vibratoLFO.stop(time + noteDuration * 1.5);
-            break;
-        case 'strings':
-            oscillator = context.createOscillator();
-            oscillator2 = context.createOscillator(); // Second oscillator for detune
-            const oscillator3 = context.createOscillator(); // Third oscillator for more richness
-            gainNode = context.createGain();
-
-            oscillator.type = 'triangle'; // Still using triangle for plucked sound
             oscillator.frequency.setValueAtTime(frequency, time);
 
-            oscillator2.type = 'triangle';
-            oscillator2.frequency.setValueAtTime(frequency * 0.998, time); // Slightly detuned for fullness
+            // --- Airy Breath Sound ---
+            const trumpetNoise = context.createBufferSource();
+            const trumpetBufferSize = context.sampleRate * (noteDuration * 1.5);
+            const trumpetNoiseBuffer = context.createBuffer(1, trumpetBufferSize, context.sampleRate);
+            const trumpetOutput = trumpetNoiseBuffer.getChannelData(0);
+            for (let i = 0; i < trumpetBufferSize; i++) {
+                trumpetOutput[i] = (Math.random() * 2 - 1) * 0.5;
+            }
+            trumpetNoise.buffer = trumpetNoiseBuffer;
+            trumpetNoise.loop = false;
 
-            oscillator3.type = 'triangle';
-            oscillator3.frequency.setValueAtTime(frequency * 1.002, time); // Another detuned oscillator
+            const trumpetNoiseGain = context.createGain();
+            trumpetNoiseGain.gain.setValueAtTime(0.05, time);
+            trumpetNoiseGain.gain.linearRampToValueAtTime(0.02, time + 0.1);
+            trumpetNoiseGain.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration);
 
-            gainNode.gain.setValueAtTime(0.7, time); // Faster attack
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + 0.4); // Quicker decay
+            trumpetNoise.connect(trumpetNoiseGain);
+            trumpetNoiseGain.connect(gainNode);
 
-            oscillator.connect(gainNode);
-            oscillator2.connect(gainNode); // Connect both oscillators
-            oscillator3.connect(gainNode); // Connect the third oscillator
+            // --- Brassy Filter Envelope ---
+            trumpetFilter.type = 'lowpass';
+            trumpetFilter.Q.setValueAtTime(2, time);
+            trumpetFilter.frequency.setValueAtTime(frequency * 1.5, time);
+            trumpetFilter.frequency.linearRampToValueAtTime(frequency * 3, time + 0.1);
+            trumpetFilter.frequency.linearRampToValueAtTime(frequency * 2, time + noteDuration);
+
+            // --- Main Gain Envelope ---
+            gainNode.gain.setValueAtTime(0, time);
+            gainNode.gain.linearRampToValueAtTime(0.15, time + 0.05);
+            gainNode.gain.linearRampToValueAtTime(0.4, time + noteDuration * 0.7);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.5);
+
+            // --- Vibrato ---
+            vibratoLFO = context.createOscillator();
+            vibratoLFO.type = 'sine';
+            vibratoLFO.frequency.setValueAtTime(5, time);
+
+            vibratoGain = context.createGain();
+            vibratoGain.gain.setValueAtTime(frequency * 0.01, time);
+
+            vibratoLFO.connect(vibratoGain);
+            vibratoGain.connect(oscillator.frequency);
+
+            // --- Connections ---
+            oscillator.connect(trumpetFilter);
+            trumpetFilter.connect(gainNode);
             gainNode.connect(context.destination);
 
+            // --- Start and Stop ---
             oscillator.start(time);
-            oscillator2.start(time);
-            oscillator3.start(time);
-            oscillator.stop(time + 0.4);
-            oscillator2.stop(time + 0.4);
-            oscillator3.stop(time + 0.4);
+            trumpetNoise.start(time);
+            vibratoLFO.start(time);
+
+            oscillator.stop(time + noteDuration * 1.5);
+            trumpetNoise.stop(time + noteDuration * 1.5);
+            vibratoLFO.stop(time + noteDuration * 1.5);
             break;
+        case 'strings': {
+            const masterGain = context.createGain();
+            const stringsFilter = context.createBiquadFilter();
+            stringsFilter.type = 'lowpass';
+            stringsFilter.Q.setValueAtTime(0.7, time); // Lower resonance to reduce buzz
+
+            const initialCutoff = Math.min(1500 + frequency * 1.5, 10000);
+            stringsFilter.frequency.setValueAtTime(initialCutoff, time);
+            stringsFilter.frequency.exponentialRampToValueAtTime(initialCutoff / 2.5, time + noteDuration * 1.2);
+
+            // --- Vibrato (Pitch Modulation) ---
+            const stringsVibratoLFO = context.createOscillator();
+            stringsVibratoLFO.type = 'sine';
+            stringsVibratoLFO.frequency.setValueAtTime(4.5, time); // Slightly slower vibration
+            const stringsVibratoGain = context.createGain();
+            stringsVibratoGain.gain.setValueAtTime(2, time); // Reduced depth - even more subtle
+            stringsVibratoLFO.connect(stringsVibratoGain);
+
+            // --- Tremolo (Amplitude Modulation) ---
+            const stringsTremoloLFO = context.createOscillator();
+            stringsTremoloLFO.type = 'sine';
+            stringsTremoloLFO.frequency.setValueAtTime(3.5, time); // Slower pulse
+            const stringsTremoloGain = context.createGain();
+            stringsTremoloGain.gain.setValueAtTime(0.03, time); // Reduced modulation to 3%
+            stringsTremoloLFO.connect(stringsTremoloGain);
+            stringsTremoloGain.connect(masterGain.gain); // Connect to the master gain
+
+            masterGain.gain.setValueAtTime(0.125, time); // Set initial gain before modulation
+            masterGain.gain.linearRampToValueAtTime(0.5, time + 0.01);
+            masterGain.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.5);
+
+            const oscillators = [];
+            const numStrings = 3;
+            const baseStrumDelay = 0.011;
+            const strumUp = Math.random() > 0.5;
+
+            for (let i = 0; i < numStrings; i++) {
+                const osc = context.createOscillator();
+                osc.type = 'triangle';
+                const detune = (Math.random() - 0.5) * 10;
+                osc.detune.setValueAtTime(detune, time);
+                stringsVibratoGain.connect(osc.detune); // Apply vibrato to each oscillator
+                osc.frequency.setValueAtTime(frequency, time);
+
+                const randomizedDelay = baseStrumDelay + (Math.random() - 0.5) * 0.006;
+                const currentStringDelay = strumUp ? (numStrings - 1 - i) * randomizedDelay : i * randomizedDelay;
+
+                osc.connect(stringsFilter);
+                osc.start(time + currentStringDelay);
+                osc.stop(time + noteDuration * 1.5 + currentStringDelay);
+                oscillators.push(osc);
+            }
+
+            const pickNoise = context.createBufferSource();
+            const pickNoiseFilter = context.createBiquadFilter();
+            pickNoiseFilter.type = 'highpass';
+            pickNoiseFilter.frequency.setValueAtTime(Math.min(2000 + frequency, 8000), time);
+            pickNoiseFilter.Q.setValueAtTime(5, time);
+
+            const pickNoiseBufferSize = context.sampleRate * 0.01;
+            const pickNoiseBuffer = context.createBuffer(1, pickNoiseBufferSize, context.sampleRate);
+            const pickNoiseOutput = pickNoiseBuffer.getChannelData(0);
+            for (let i = 0; i < pickNoiseBufferSize; i++) {
+                pickNoiseOutput[i] = Math.random() * 2 - 1;
+            }
+            pickNoise.buffer = pickNoiseBuffer;
+            const pickNoiseGain = context.createGain();
+            pickNoiseGain.gain.setValueAtTime(0.3, time); // Reduced volume
+            pickNoiseGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.015);
+            pickNoise.connect(pickNoiseFilter);
+            pickNoiseFilter.connect(pickNoiseGain);
+            pickNoiseGain.connect(masterGain);
+
+            const bodyResonance = context.createOscillator();
+            bodyResonance.type = 'sine';
+            bodyResonance.frequency.setValueAtTime(frequency * 0.5, time);
+            const bodyGain = context.createGain();
+            const bodyVolume = Math.max(0, 0.15 - (frequency / 10000));
+            bodyGain.gain.setValueAtTime(bodyVolume, time);
+            bodyGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.2);
+            bodyResonance.connect(bodyGain);
+            bodyGain.connect(masterGain);
+
+            stringsFilter.connect(masterGain);
+            masterGain.connect(context.destination);
+
+            pickNoise.start(time);
+            bodyResonance.start(time);
+            stringsVibratoLFO.start(time);
+            stringsTremoloLFO.start(time);
+
+            bodyResonance.stop(time + 0.2);
+            stringsVibratoLFO.stop(time + noteDuration * 1.5);
+            stringsTremoloLFO.stop(time + noteDuration * 1.5);
+
+            return {
+                oscillator: {
+                    stop: (stopTime) => {
+                        oscillators.forEach(o => o.stop(stopTime));
+                    }
+                },
+                gainNode: masterGain
+            };
+        }
+        break;
         default:
             // Fallback to default waveform if instrument not recognized
             oscillator = context.createOscillator();
             gainNode = context.createGain();
             oscillator.type = waveformSelect.value;
             oscillator.frequency.setValueAtTime(frequency, time);
-            gainNode.gain.setValueAtTime(0.1, time);
+            gainNode.gain.setValueAtTime(0.4, time);
             gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration);
             oscillator.connect(gainNode);
             gainNode.connect(context.destination);
@@ -573,18 +820,35 @@ function playSFX(sfxType, time, duration, frequency, context = audioContext) {
 
     switch (sfxType) {
         case 'coin':
-            oscillator.type = 'triangle';
-            oscillator.frequency.setValueAtTime(1000 * (frequency / baseNoteFrequencyForSFX), actualTime); // Scale frequency
-            gainNode.gain.setValueAtTime(0.5, actualTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.1);
-            oscillator.start(actualTime);
-            oscillator.stop(actualTime + 0.1);
-            break;
+            // First tone
+            const osc1 = context.createOscillator();
+            const gain1 = context.createGain();
+            osc1.type = 'triangle';
+            osc1.frequency.setValueAtTime(1000 * (frequency / baseNoteFrequencyForSFX), actualTime);
+            gain1.gain.setValueAtTime(0.1, actualTime);
+            gain1.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.05);
+            osc1.connect(gain1);
+            gain1.connect(context.destination);
+            osc1.start(actualTime);
+            osc1.stop(actualTime + 0.05);
+
+            // Second tone, slightly higher and immediately after
+            const osc2 = context.createOscillator();
+            const gain2 = context.createGain();
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(1200 * (frequency / baseNoteFrequencyForSFX), actualTime + 0.03); // Start slightly after
+            gain2.gain.setValueAtTime(0.1, actualTime + 0.03);
+            gain2.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.08);
+            osc2.connect(gain2);
+            gain2.connect(context.destination);
+            osc2.start(actualTime + 0.03);
+            osc2.stop(actualTime + 0.08);
+            return; // Return early as we are handling multiple oscillators
         case 'jump':
             oscillator.type = 'square';
             oscillator.frequency.setValueAtTime(400 * (frequency / baseNoteFrequencyForSFX), actualTime); // Scale frequency
             oscillator.frequency.linearRampToValueAtTime(800 * (frequency / baseNoteFrequencyForSFX), actualTime + 0.1); // Scale frequency
-            gainNode.gain.setValueAtTime(0.5, actualTime);
+            gainNode.gain.setValueAtTime(0.1, actualTime);
             gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.2);
             oscillator.start(actualTime);
             oscillator.stop(actualTime + 0.2);
@@ -593,7 +857,7 @@ function playSFX(sfxType, time, duration, frequency, context = audioContext) {
             oscillator.type = 'sawtooth';
             oscillator.frequency.setValueAtTime(800 * (frequency / baseNoteFrequencyForSFX), actualTime); // Scale frequency
             oscillator.frequency.linearRampToValueAtTime(100 * (frequency / baseNoteFrequencyForSFX), actualTime + 0.2); // Scale frequency
-            gainNode.gain.setValueAtTime(0.4, actualTime);
+            gainNode.gain.setValueAtTime(0.1, actualTime);
             gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.2);
             oscillator.start(actualTime);
             oscillator.stop(actualTime + 0.2);
@@ -609,7 +873,7 @@ function playSFX(sfxType, time, duration, frequency, context = audioContext) {
             const noiseSource = context.createBufferSource();
             noiseSource.buffer = noiseBuffer;
             
-            gainNode.gain.setValueAtTime(0.8, actualTime);
+            gainNode.gain.setValueAtTime(0.15, actualTime);
             gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.5);
 
             noiseSource.connect(gainNode);
@@ -620,7 +884,7 @@ function playSFX(sfxType, time, duration, frequency, context = audioContext) {
         case 'blip':
             oscillator.type = 'square';
             oscillator.frequency.setValueAtTime(800 * (frequency / baseNoteFrequencyForSFX), actualTime);
-            gainNode.gain.setValueAtTime(0.3, actualTime);
+            gainNode.gain.setValueAtTime(0.075, actualTime);
             gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.05);
             oscillator.start(actualTime);
             oscillator.stop(actualTime + 0.05);
@@ -629,7 +893,7 @@ function playSFX(sfxType, time, duration, frequency, context = audioContext) {
             oscillator.type = 'triangle';
             oscillator.frequency.setValueAtTime(400 * (frequency / baseNoteFrequencyForSFX), actualTime);
             oscillator.frequency.linearRampToValueAtTime(800 * (frequency / baseNoteFrequencyForSFX), actualTime + 0.2);
-            gainNode.gain.setValueAtTime(0.6, actualTime);
+            gainNode.gain.setValueAtTime(0.1, actualTime);
             gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.3);
             oscillator.start(actualTime);
             oscillator.stop(actualTime + 0.3);
@@ -637,7 +901,7 @@ function playSFX(sfxType, time, duration, frequency, context = audioContext) {
         case 'hit':
             oscillator.type = 'sawtooth';
             oscillator.frequency.setValueAtTime(200 * (frequency / baseNoteFrequencyForSFX), actualTime);
-            gainNode.gain.setValueAtTime(0.7, actualTime);
+            gainNode.gain.setValueAtTime(0.125, actualTime);
             gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.1);
             oscillator.start(actualTime);
             oscillator.stop(actualTime + 0.1);
@@ -653,8 +917,6 @@ function playSFX(sfxType, time, duration, frequency, context = audioContext) {
 sfxSelect.addEventListener('change', (event) => {
     const selectedSfx = event.target.value;
     if (selectedSfx) {
-        // Play SFX immediately for preview, using a default frequency (C4)
-        playSFX(selectedSfx, audioContext.currentTime, 0.5, frequencies[0]);
         // Clear instrument and waveform selections when an SFX is chosen
         instrumentSelect.value = 'default';
         waveformSelect.value = 'square';
@@ -823,7 +1085,7 @@ saveMp3Button.addEventListener('click', () => {
                     oscillator.type = waveformSelect.value;
                     oscillator.frequency.setValueAtTime(frequencies[i], renderTime);
 
-                    gainNode.gain.setValueAtTime(0.1, renderTime);
+                    gainNode.gain.setValueAtTime(0.05, renderTime);
                     gainNode.gain.exponentialRampToValueAtTime(0.0001, renderTime + noteDuration);
 
                     oscillator.connect(gainNode);
