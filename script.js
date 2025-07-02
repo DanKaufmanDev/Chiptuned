@@ -7,7 +7,9 @@ const noteLabelsContainer = document.getElementById('note-labels');
 const bpmInput = document.getElementById('bpm');
 const bpmValueSpan = document.getElementById('bpm-value');
 const loopCheckbox = document.getElementById('loop');
-const playMusicButton = document.getElementById('play-music');
+const globalProgressBar = document.getElementById('global-progress-bar');
+const globalTimestamp = document.getElementById('global-timestamp');
+const globalPlayPauseButton = document.getElementById('global-play-pause');
 const clearGridButton = document.getElementById('clear-grid');
 const randomGridButton = document.getElementById('random-grid');
 const octaveDownButton = document.getElementById('octave-down');
@@ -114,7 +116,7 @@ function renderLayerList() {
         const saveLayerName = () => {
             let newName = layerNameInput.value.trim();
             if (newName === '') {
-                newName = `Layer ${index + 1}`;
+                newName = `Track ${index + 1}`;
             }
             layers[index].name = newName;
             renderLayerList(); // Re-render to update the name and hide input
@@ -190,7 +192,7 @@ function renderActiveLayer() {
 }
 
 function addLayer() {
-    const newLayer = createNewLayer(`Layer ${layers.length + 1}`);
+    const newLayer = createNewLayer(`Track ${layers.length + 1}`);
     layers.push(newLayer);
     switchLayer(layers.length - 1);
 }
@@ -427,7 +429,7 @@ function startPlayback() {
     playingNodes = [];
     scheduler();
     requestAnimationFrame(draw);
-    playMusicButton.textContent = "Stop";
+        globalPlayPauseButton.textContent = "Stop";
 }
 
 function stopPlayback(clearGridFlag = false) {
@@ -443,7 +445,6 @@ function stopPlayback(clearGridFlag = false) {
     playingNodes = [];
     columnHighlight.classList.remove('block');
     columnHighlight.classList.add('hidden');
-    playMusicButton.textContent = "Play";
 
     // Clear all highlighted cells
     const highlightedCells = document.querySelectorAll('.grid-cell.highlighted');
@@ -454,6 +455,8 @@ function stopPlayback(clearGridFlag = false) {
         renderActiveLayer(); // Re-render the main grid
         renderLayerList(); // Re-render the layer list
     }
+    requestAnimationFrame(draw);
+        globalPlayPauseButton.textContent = "Play";
 }
 
 function handleMouseDown(e, row, col) {
@@ -610,7 +613,7 @@ function handleMouseUp() {
     lastRenderedNote = null;
 }
 
-playMusicButton.addEventListener('click', () => {
+globalPlayPauseButton.addEventListener('click', () => {
     if (isPlaying) {
         stopPlayback();
     } else {
@@ -1446,7 +1449,7 @@ document.addEventListener('DOMContentLoaded', () => {
     createGrid();
     addLayer(); // Create initial layer
     bpmValueSpan.textContent = bpmInput.value;
-    adjustLayerPanelHeight();
+    adjustLayout();
 
     // Enable the saveMp3Button only if lamejs is defined
     if (typeof lamejs !== 'undefined') {
@@ -1761,14 +1764,20 @@ function fallbackSaveMp3(blob, fileName) {
     URL.revokeObjectURL(url);
 }
 
-function adjustLayerPanelHeight() {
+function adjustLayout() {
     const mainAppWindow = document.getElementById('main-app-window');
     const layerContainer = document.getElementById('layer-container');
+    const topWindow = document.getElementById('top-window');
+
     if (mainAppWindow && layerContainer) {
         const mainHeight = mainAppWindow.offsetHeight;
-        layerContainer.style.height = `${mainHeight * 0.95}px`;
+        layerContainer.style.height = `${mainHeight}px`;
+    }
+
+    if (mainAppWindow && topWindow) {
+        topWindow.style.width = `${mainAppWindow.offsetWidth}px`;
     }
 }
 
-window.addEventListener('resize', adjustLayerPanelHeight);
-document.addEventListener('DOMContentLoaded', adjustLayerPanelHeight);
+window.addEventListener('resize', adjustLayout);
+document.addEventListener('DOMContentLoaded', adjustLayout);
