@@ -330,7 +330,7 @@ function createGrid() {
         const computedStyle = window.getComputedStyle(gridContainer);
         gridColumnGap = parseFloat(computedStyle.getPropertyValue('grid-column-gap'));
         effectiveColumnWidth = cellActualWidth + gridColumnGap;
-        gridContainerOffsetLeft = noteLabelsContainer.offsetWidth + 8; // Explicitly calculate offset
+        gridContainerOffsetLeft = gridContainer.offsetLeft; // Get the actual offset of the grid container
         columnHighlightWidth = cellActualWidth; // Set the highlighter width to the cell width
     }
 }
@@ -380,17 +380,35 @@ function nextNote() {
     nextNoteTime += secondsPerBeat;
 
     currentColumn++;
-    if (currentColumn === numCols) {
-        if (!loopCheckbox.checked) {
+
+    // Calculate the current time based on currentColumn
+    const currentTimeInSequence = currentColumn * secondsPerBeat;
+
+    if (loopCheckbox.checked) {
+        // If looping, and we've passed the total duration of the actual notes
+        if (totalSequenceDuration > 0 && currentTimeInSequence >= totalSequenceDuration) {
+            currentColumn = 0;
+            currentPlaybackTime = 0; // Reset playback time on loop
+            playbackStartTime = audioContext.currentTime; // Reset playback start time
+            globalProgressBar.value = 0; // Reset progress bar on loop
+        } else if (totalSequenceDuration === 0 && currentColumn >= numCols) {
+            // If no notes (totalSequenceDuration is 0), loop the full grid length
+            currentColumn = 0;
+            currentPlaybackTime = 0;
+            playbackStartTime = audioContext.currentTime;
+            globalProgressBar.value = 0;
+        }
+    } else {
+        // If not looping and reached the end of the grid, stop playback
+        if (currentColumn === numCols) {
             const stopDelay = (60.0 / bpm) * 1000; // Delay in ms for one beat
             endOfSequenceTimerId = setTimeout(() => {
                 stopPlayback(false); // Don't clear the grid, just stop
             }, stopDelay);
             return; // Exit without resetting column
-        } else {
-            currentColumn = 0;
         }
     }
+
     console.log(`nextNote: currentColumn is now ${currentColumn}`);
 }
 
@@ -436,20 +454,24 @@ function scheduler() {
 function draw() {
     if (!isPlaying) return;
 
+    // Update current playback time and progress bar more frequently for smoother animation
+    currentPlaybackTime = audioContext.currentTime - playbackStartTime;
+    globalProgressBar.value = currentPlaybackTime;
+
     const secondsPerBeat = 60.0 / parseFloat(bpmInput.value);
-    const timeSinceLastNote = audioContext.currentTime - (nextNoteTime - secondsPerBeat);
-    const percentageOfBeat = timeSinceLastNote / secondsPerBeat;
-    const highlightCol = (currentColumn - 1 + numCols) % numCols;
+    let highlightCol = Math.floor(currentPlaybackTime / secondsPerBeat);
 
-    // Clear previous highlights
-    const previouslyHighlighted = document.querySelectorAll('.grid-cell.highlighted');
-    previouslyHighlighted.forEach(cell => cell.classList.remove('highlighted'));
+    // Cap highlightCol to prevent it from exceeding the grid width
+    highlightCol = Math.min(highlightCol, numCols - 1);
 
-    // Add new highlights
-    // const currentlyHighlighted = document.querySelectorAll(`[data-col='${highlightCol}']`);
-    // currentlyHighlighted.forEach(cell => cell.classList.add('highlighted'));
+    // Update the displayed timestamp based on the highlighted column's time
+    globalTimestamp.textContent = `${formatTime(currentPlaybackTime)}/${formatTime(totalSequenceDuration)}`;
 
-    highlightColumn(highlightCol, 1); // Always pass 1 for single column highlight
+    // Only update column highlight if it has changed
+    if (highlightCol !== lastHighlightedColumn) {
+        highlightColumn(highlightCol, 1);
+        lastHighlightedColumn = highlightCol;
+    }
 
     requestAnimationFrame(draw);
 }
@@ -677,17 +699,20 @@ globalPlayPauseButton.addEventListener('click', () => {
 function highlightColumn(col, span = 1) {
     if (effectiveColumnWidth === 0) return;
 
-    const gridWrapperScrollLeft = gridContainer.parentElement.scrollLeft;
+    const gridWrapperScrollLeft = Math.round(gridContainer.parentElement.scrollLeft);
 
-    columnHighlight.style.width = `${columnHighlightWidth}px`; // Always one column width
-    columnHighlight.style.left = `${gridContainerOffsetLeft + (col * effectiveColumnWidth) - gridWrapperScrollLeft}px`;
+    // Round all components to avoid sub-pixel issues
+    const highlightLeft = Math.round(gridContainerOffsetLeft) + Math.round(col * effectiveColumnWidth) - gridWrapperScrollLeft;
+
+    columnHighlight.style.width = `${Math.round(columnHighlightWidth)}px`;
+    columnHighlight.style.left = `${highlightLeft}px`;
     columnHighlight.style.height = `auto`;
     columnHighlight.style.top = `0`;
     columnHighlight.classList.remove('hidden');
     columnHighlight.classList.add('block');
 
     // Scroll the grid-wrapper to the current column
-    gridContainer.parentElement.scrollLeft = col * effectiveColumnWidth;
+    gridContainer.parentElement.scrollLeft = Math.round(col * effectiveColumnWidth);
 }
 
 function playSound(waveform, frequency, time, duration, context = audioContext) {
@@ -1386,9 +1411,19 @@ function updateBpmFromTextInput() {
         newBpm = 240;
     }
 
+    const oldBpm = parseFloat(bpmInput.value);
+    const oldSecondsPerBeat = 60.0 / oldBpm;
+    const currentColumnAtChange = Math.floor(currentPlaybackTime / oldSecondsPerBeat);
+
     bpmInput.value = newBpm;
     bpmValueSpan.textContent = newBpm;
     updateTotalDurationAndDisplay();
+
+    // If playing, adjust playbackStartTime to keep the highlighter at its current column
+    if (isPlaying) {
+        const newSecondsPerBeat = 60.0 / newBpm;
+        playbackStartTime = audioContext.currentTime - (currentColumnAtChange * newSecondsPerBeat);
+    }
 
     bpmTextInput.classList.add('hidden');
     bpmValueSpan.classList.remove('hidden');
