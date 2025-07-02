@@ -53,7 +53,8 @@
              <div class="sequencer-controls mb-8 pb-8 border-b-2 border-gray-700 flex flex-wrap justify-center items-center gap-2">
                 <label for="bpm" class="text-lg mr-2">BPM:</label>
                 <input type="range" id="bpm" min="60" max="240" value="120" class="w-24 h-2 appearance-none cursor-pointer bpm-slider">
-                <span id="bpm-value" class="text-lg font-bold text-white">120</span>
+                <span id="bpm-value" class="text-lg font-bold text-white cursor-pointer w-16 text-center">120</span>
+                <input type="number" id="bpm-text-input" class="hidden w-16 text-center bg-gray-700 text-white text-lg font-bold rounded">
                 <label for="loop" class="text-lg mr-2">Loop:</label>
                 <input type="checkbox" id="loop" class="form-checkbox h-5 w-5 text-blue-600 focus:ring-blue-500 retro-checkbox">
                 <button id="play-music" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Play</button>

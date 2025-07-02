@@ -16,6 +16,7 @@ const saveMp3Button = document.getElementById('save-mp3');
 const saveProjectButton = document.getElementById('save-project');
 const loadProjectButton = document.getElementById('load-project');
 const columnHighlight = document.getElementById('column-highlight');
+const bpmTextInput = document.getElementById('bpm-text-input');
 
 const baseNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const baseFrequencies = [16.35, 17.32, 18.35, 19.45, 20.60, 21.83, 23.12, 24.50, 25.96, 27.50, 29.14, 30.87]; // C0 to B0
@@ -1146,6 +1147,46 @@ instrumentSelect.addEventListener('change', () => {
 
 bpmInput.addEventListener('input', () => {
     bpmValueSpan.textContent = bpmInput.value;
+});
+
+bpmValueSpan.addEventListener('click', () => {
+    bpmValueSpan.classList.add('hidden');
+    bpmTextInput.classList.remove('hidden');
+    bpmTextInput.value = bpmValueSpan.textContent;
+    bpmTextInput.focus();
+    bpmTextInput.select();
+});
+
+function updateBpmFromTextInput() {
+    let newBpm = parseInt(bpmTextInput.value, 10);
+
+    if (isNaN(newBpm)) {
+        bpmTextInput.classList.add('hidden');
+        bpmValueSpan.classList.remove('hidden');
+        return;
+    }
+    
+    if (newBpm < 60) {
+        newBpm = 60;
+    } else if (newBpm > 240) {
+        newBpm = 240;
+    }
+
+    bpmInput.value = newBpm;
+    bpmValueSpan.textContent = newBpm;
+
+    bpmTextInput.classList.add('hidden');
+    bpmValueSpan.classList.remove('hidden');
+}
+
+bpmTextInput.addEventListener('blur', updateBpmFromTextInput);
+bpmTextInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        updateBpmFromTextInput();
+    } else if (e.key === 'Escape') {
+        bpmTextInput.classList.add('hidden');
+        bpmValueSpan.classList.remove('hidden');
+    }
 });
 
 
