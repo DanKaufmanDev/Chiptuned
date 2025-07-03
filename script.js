@@ -21,9 +21,12 @@ const columnHighlight = document.getElementById('column-highlight');
 const bpmTextInput = document.getElementById('bpm-text-input');
 const addLayerButton = document.getElementById('add-layer');
 const layerListContainer = document.getElementById('layer-list');
+const busMixerContainer = document.getElementById('bus-mixer-container'); // New
 
 let layers = [];
 let activeLayerIndex = -1;
+let masterGainNode = audioContext.createGain(); // Master Gain Node
+masterGainNode.connect(audioContext.destination);
 
 const baseNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const baseFrequencies = [16.35, 17.32, 18.35, 19.45, 20.60, 21.83, 23.12, 24.50, 25.96, 27.50, 29.14, 30.87]; // C0 to B0
@@ -84,6 +87,10 @@ function updateTotalDurationAndDisplay() {
 }
 
 function createNewLayer(name) {
+    const gainNode = audioContext.createGain();
+    gainNode.gain.value = 0.7; // Default gain for new tracks
+    gainNode.connect(masterGainNode); // Connect track bus to master bus
+
     return {
         id: Date.now(),
         name: name,
@@ -92,7 +99,9 @@ function createNewLayer(name) {
         waveform: 'square',
         sfx: '',
         octave: 4,
-        isMuted: false
+        isMuted: false,
+        gainNode: gainNode, // Store the gain node for this layer
+        gainValue: 0.7 // Store the gain value for saving/loading
     };
 }
 
@@ -102,6 +111,11 @@ function deleteLayer(indexToDelete) {
         return;
     }
 
+    // Disconnect the gain node of the layer being deleted
+    if (layers[indexToDelete].gainNode) {
+        layers[indexToDelete].gainNode.disconnect();
+    }
+
     layers.splice(indexToDelete, 1);
 
     if (activeLayerIndex >= indexToDelete) {
@@ -109,6 +123,7 @@ function deleteLayer(indexToDelete) {
     }
 
     switchLayer(activeLayerIndex, true);
+    renderBusMixer(); // Update mixer after deleting a layer
 }
 
 function renderLayerList() {
@@ -155,6 +170,7 @@ function renderLayerList() {
             }
             layers[index].name = newName;
             renderLayerList(); // Re-render to update the name and hide input
+            renderBusMixer(); // Update the bus mixer with the new name
         };
 
         layerNameInput.addEventListener('blur', saveLayerName);
@@ -261,6 +277,7 @@ function addLayer() {
     const newLayer = createNewLayer(`Track ${layers.length + 1}`);
     layers.push(newLayer);
     switchLayer(layers.length - 1);
+    renderBusMixer(); // Update mixer after adding a layer
 }
 
 function toggleSingleNote(row, col) {
@@ -444,6 +461,36 @@ function nextNote() {
     console.log(`nextNote: currentColumn is now ${currentColumn}`);
 }
 
+function playSFX(sfx, time, duration, frequency, audioCtx) {
+    // TODO: Implement SFX playback
+    console.log(`Playing SFX: ${sfx}`);
+}
+
+function playInstrument(instrument, frequency, time, duration, audioCtx, destinationNode) {
+    // TODO: Implement instrument playback
+    console.log(`Playing instrument: ${instrument}`);
+    return { oscillator: null, gainNode: null };
+}
+
+function playSound(waveform, frequency, time, duration, audioCtx, destinationNode) {
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.type = waveform;
+    oscillator.frequency.setValueAtTime(frequency, time);
+
+    gainNode.gain.setValueAtTime(0.2, time);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(destinationNode);
+
+    oscillator.start(time);
+    oscillator.stop(time + duration);
+
+    return { oscillator, gainNode };
+}
+
 function scheduleNote(beatNumber, time) {
     layers.forEach(layer => {
         if (layer.isMuted) return; // Skip muted layers
@@ -464,10 +511,10 @@ function scheduleNote(beatNumber, time) {
                 } else {
                     const selectedInstrument = layer.instrument;
                     if (selectedInstrument === 'default') {
-                        const { oscillator, gainNode } = playSound(layer.waveform, noteFrequency, time, noteDurationInSeconds);
+                        const { oscillator, gainNode } = playSound(layer.waveform, noteFrequency, time, noteDurationInSeconds, audioContext, layer.gainNode);
                         playingNodes.push({ oscillator, gainNode });
                     } else {
-                        const { oscillator, gainNode } = playInstrument(selectedInstrument, noteFrequency, time, noteDurationInSeconds);
+                        const { oscillator, gainNode } = playInstrument(selectedInstrument, noteFrequency, time, noteDurationInSeconds, audioContext, layer.gainNode);
                         playingNodes.push({ oscillator, gainNode });
                     }
                 }
@@ -751,639 +798,56 @@ function highlightColumn(col, span = 1) {
     gridContainer.parentElement.scrollLeft = Math.round(col * effectiveColumnWidth);
 }
 
-function playSound(waveform, frequency, time, duration, context = audioContext) {
-    // console.log(`playSound: Playing ${waveform} at ${frequency}Hz at time ${time}`);
-    if (context.state === 'suspended') {
-        context.resume();
-    }
+function renderBusMixer() {
+    busMixerContainer.innerHTML = '';
 
-    const oscillator = context.createOscillator();
-    const gainNode = context.createGain();
-    const noteDuration = duration; // Use the provided duration
+    // Master Bus
+    const masterBusDiv = document.createElement('div');
+    masterBusDiv.classList.add('bus-container');
+    masterBusDiv.innerHTML = `
+        <div class="retro-slider-container">
+            <input type="range" class="retro-slider" id="master-volume-slider" min="0" max="100" value="70">
+        </div>
+        <label for="master-volume-slider" class="bus-label">Master</label>
+    `;
+    busMixerContainer.appendChild(masterBusDiv);
 
-    oscillator.type = waveform;
-    oscillator.frequency.setValueAtTime(frequency, time);
+    const masterVolumeSlider = document.getElementById('master-volume-slider');
+    masterVolumeSlider.value = linearToLog(masterGainNode.gain.value);
+    masterVolumeSlider.addEventListener('input', (e) => {
+        masterGainNode.gain.value = logToLinear(e.target.value);
+    });
 
-    gainNode.gain.setValueAtTime(0.1, time);
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration);
+    // Track Buses
+    layers.forEach((layer, index) => {
+        const trackBusDiv = document.createElement('div');
+        trackBusDiv.classList.add('bus-container');
+        trackBusDiv.innerHTML = `
+            <div class="retro-slider-container">
+                <input type="range" class="retro-slider" id="track-volume-slider-${layer.id}" min="0" max="100" value="70">
+            </div>
+            <label for="track-volume-slider-${layer.id}" class="bus-label">${layer.name}</label>
+        `;
+        busMixerContainer.appendChild(trackBusDiv);
 
-    oscillator.connect(gainNode);
-    gainNode.connect(context.destination);
-
-    oscillator.start(time);
-    oscillator.stop(time + noteDuration); // Ensure the oscillator stops after its duration
-    return { oscillator, gainNode };
+        const trackVolumeSlider = document.getElementById(`track-volume-slider-${layer.id}`);
+        trackVolumeSlider.value = linearToLog(layer.gainNode.gain.value);
+        trackVolumeSlider.addEventListener('input', (e) => {
+            layer.gainNode.gain.value = logToLinear(e.target.value);
+            layer.gainValue = layer.gainNode.gain.value; // Update stored gain value
+        });
+    });
 }
 
-function playInstrument(instrument, frequency, time, duration, context = audioContext) {
-    const noteDuration = duration; // Use the provided duration
-    let oscillator, gainNode;
-    let oscillator2, octUpOscillator, octDownOscillator, fluteVibratoLFO, fluteVibratoGain, vibratoLFO, vibratoGain, filter;
-
-    switch (instrument) {
-        case 'piano': {
-            const masterGain = context.createGain();
-            const filter = context.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.Q.setValueAtTime(3.5, time); // Increased Q for more resonance
-
-            // Dynamic filter for hammer and decay - more pronounced sweep
-            filter.frequency.setValueAtTime(8000, time); // Start very bright
-            filter.frequency.exponentialRampToValueAtTime(frequency * 1.5, time + noteDuration * 1.8);
-
-            // Main volume envelope - slightly longer decay
-            masterGain.gain.setValueAtTime(0, time);
-            masterGain.gain.linearRampToValueAtTime(0.05, time + 0.01);
-            masterGain.gain.exponentialRampToValueAtTime(0.15, time + 0.5);
-            masterGain.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 3);
-
-            const oscillators = [];
-
-            // Multi-string simulation (2 triangles, 1 filtered saw for richness)
-            const coreWaveforms = ['triangle', 'triangle', 'sawtooth'];
-            for (let i = 0; i < coreWaveforms.length; i++) {
-                const osc = context.createOscillator();
-                osc.type = coreWaveforms[i];
-                // Detune each string slightly for a natural chorus
-                osc.detune.setValueAtTime((i - 1) * 3 + (Math.random() - 0.5) * 2, time);
-
-                // Hammer pitch attack - quick and subtle
-                osc.frequency.setValueAtTime(frequency * 1.008, time);
-                osc.frequency.exponentialRampToValueAtTime(frequency, time + 0.1);
-
-                if (osc.type === 'sawtooth') {
-                    // Heavily filter the sawtooth to prevent buzz, keeping its complexity
-                    const sawFilter = context.createBiquadFilter();
-                    sawFilter.type = 'lowpass';
-                    // Frequency-dependent cutoff for sawtooth - lower for low notes
-                    sawFilter.frequency.setValueAtTime(Math.min(frequency * 3, 2000), time); // Cap at 2000Hz
-                    osc.connect(sawFilter);
-                    sawFilter.connect(filter);
-                } else {
-                    osc.connect(filter);
-                }
-
-                osc.start(time);
-                osc.stop(time + noteDuration * 3);
-                oscillators.push(osc);
-            }
-
-            // Sympathetic Resonance (Octave + Fifth) - subtle and long-decaying
-            const resonanceFrequencies = [frequency * 2, frequency * 1.5];
-            for (const resFreq of resonanceFrequencies) {
-                const resOsc = context.createOscillator();
-                resOsc.type = 'sine';
-                resOsc.frequency.setValueAtTime(resFreq, time);
-                const resGain = context.createGain();
-                resGain.gain.setValueAtTime(0, time);
-                resGain.gain.linearRampToValueAtTime(0.05, time + 0.4); // Slower, more subtle fade-in
-                resGain.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 2.5);
-                resOsc.connect(resGain);
-                resGain.connect(masterGain);
-                resOsc.start(time);
-                resOsc.stop(time + noteDuration * 3);
-                oscillators.push(resOsc);
-            }
-
-            filter.connect(masterGain);
-            masterGain.connect(context.destination);
-
-            return {
-                oscillator: {
-                    stop: (stopTime) => oscillators.forEach(o => o.stop(stopTime))
-                },
-                gainNode: masterGain
-            };
-        }
-        case 'organ': {
-            const oscillators = [];
-            const masterGain = context.createGain();
-            const filter = context.createBiquadFilter();
-            filter.type = 'lowpass';
-            // A gentle filter to remove high-end graininess, cutoff is frequency dependent
-            filter.frequency.setValueAtTime(Math.min(8000, frequency * 8), time);
-            filter.Q.setValueAtTime(2.0, time); // Increased Q for more pronounced smoothing
-
-            // --- Organ Harmonic Series (Drawbars) ---
-            const harmonicRatios = [
-                { ratio: 1, gain: 0.6, type: 'sine' },   // 8' Principal (fundamental)
-                { ratio: 2, gain: 0.4, type: 'sine' },   // 4' Octave
-                { ratio: 3, gain: 0.2, type: 'sine' },   // 2 2/3' Quint (fifth harmonic)
-                { ratio: 4, gain: 0.2, type: 'sine' },   // 2' Superoctave
-                { ratio: 0.5, gain: 0.2, type: 'sine' }  // 16' Sub-octave
-            ];
-
-            // --- Slow Vibrato ---
-            const vibratoLFO = context.createOscillator();
-            vibratoLFO.type = 'sine';
-            vibratoLFO.frequency.setValueAtTime(4, time); // Slightly faster vibrato for more character
-            const vibratoGain = context.createGain();
-            // Capping vibrato depth to prevent high-frequency graininess
-            const vibratoDepth = Math.min(frequency * 0.004, 2); // Further reduced vibrato depth, capped at 2Hz
-            vibratoGain.gain.setValueAtTime(vibratoDepth, time);
-            vibratoLFO.connect(vibratoGain);
-
-            for (const harmonic of harmonicRatios) {
-                const osc = context.createOscillator();
-                osc.type = harmonic.type;
-                osc.frequency.setValueAtTime(frequency * harmonic.ratio, time);
-                // Subtle random detune for organic feel
-                osc.detune.setValueAtTime((Math.random() - 0.5) * 0.2, time); // Further reduced detune
-
-                // Apply vibrato to each oscillator's frequency
-                vibratoGain.connect(osc.frequency);
-
-                const oscGain = context.createGain();
-                oscGain.gain.setValueAtTime(harmonic.gain, time);
-
-                osc.connect(oscGain);
-                oscGain.connect(filter); // Connect to filter instead of masterGain
-
-                osc.start(time);
-                osc.stop(time + noteDuration * 4); // Much longer sustain for organic decay
-                oscillators.push(osc);
-            }
-
-            // ADSR envelope for organ (slow attack, long sustain, long release)
-            masterGain.gain.setValueAtTime(0, time); // Start from silence
-            masterGain.gain.linearRampToValueAtTime(0.15, time + 0.08); // Further reduced attack gain
-            masterGain.gain.linearRampToValueAtTime(0.5, time + noteDuration * 1.5); // Long sustain
-            masterGain.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 4); // Much longer release for organic decay
-
-            filter.connect(masterGain); // Connect filter to master gain
-            masterGain.connect(context.destination);
-
-            vibratoLFO.start(time);
-            vibratoLFO.stop(time + noteDuration * 2);
-
-            return {
-                oscillator: {
-                    stop: (stopTime) => {
-                        oscillators.forEach(o => o.stop(stopTime));
-                        vibratoLFO.stop(stopTime);
-                    }
-                },
-                gainNode: masterGain
-            };
-        }
-        break;
-        case 'synth_lead':
-            oscillator = context.createOscillator();
-            oscillator2 = context.createOscillator(); // Second oscillator for detune
-            gainNode = context.createGain();
-
-            oscillator.type = 'sawtooth';
-            oscillator.frequency.setValueAtTime(frequency, time);
-
-            oscillator2.type = 'sawtooth';
-            oscillator2.frequency.setValueAtTime(frequency * 1.005, time); // Slightly detuned
-
-            // ADSR envelope for gain
-            gainNode.gain.setValueAtTime(0.1, time); // Stronger attack
-            gainNode.gain.linearRampToValueAtTime(0.3, time + 0.1); // Quick decay to sustain
-            gainNode.gain.linearRampToValueAtTime(0.3, time + noteDuration * 0.7); // Sustain
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.2); // Longer release
-
-            oscillator.connect(gainNode);
-            oscillator2.connect(gainNode); // Connect both oscillators
-            gainNode.connect(context.destination);
-
-            oscillator.start(time);
-            oscillator2.start(time);
-            oscillator.stop(time + noteDuration * 1.2);
-            oscillator2.stop(time + noteDuration * 1.2);
-            break;
-        case 'bass': {
-            const masterGain = context.createGain();
-            const filter = context.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.Q.setValueAtTime(0.8, time); // Subtle resonance
-
-            // Filter envelope for tone shaping
-            filter.frequency.setValueAtTime(frequency * 3, time); // Start bright
-            filter.frequency.exponentialRampToValueAtTime(frequency * 0.8, time + noteDuration * 0.5); // Mellow out
-
-            // Main volume envelope
-            masterGain.gain.setValueAtTime(0, time);
-            masterGain.gain.linearRampToValueAtTime(0.15, time + 0.01); // Quick attack
-            masterGain.gain.exponentialRampToValueAtTime(0.3, time + 0.1); // Initial decay
-            masterGain.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.5); // Longer sustain
-
-            const oscillators = [];
-
-            // Primary oscillator (square wave for punch)
-            const mainOsc = context.createOscillator();
-            mainOsc.type = 'square';
-            // Pitch bend for pluck effect
-            mainOsc.frequency.setValueAtTime(frequency * 1.005, time);
-            mainOsc.frequency.exponentialRampToValueAtTime(frequency, time + 0.05);
-            mainOsc.connect(filter);
-            mainOsc.start(time);
-            mainOsc.stop(time + noteDuration * 1.5);
-            oscillators.push(mainOsc);
-
-            // Second oscillator (triangle for richness and harmonics)
-            const subOsc = context.createOscillator();
-            subOsc.type = 'triangle';
-            subOsc.frequency.setValueAtTime(frequency * 0.5, time); // One octave down
-            const subGain = context.createGain();
-            subGain.gain.setValueAtTime(0.4, time); // Lower volume
-            subOsc.connect(subGain);
-            subGain.connect(filter);
-            subOsc.start(time);
-            subOsc.stop(time + noteDuration * 1.5);
-            oscillators.push(subOsc);
-
-            // Pluck noise
-            const pluckNoise = context.createBufferSource();
-            const pluckNoiseFilter = context.createBiquadFilter();
-            pluckNoiseFilter.type = 'highpass';
-            pluckNoiseFilter.frequency.setValueAtTime(1000, time);
-            pluckNoiseFilter.Q.setValueAtTime(5, time);
-
-            const pluckNoiseBufferSize = context.sampleRate * 0.01;
-            const pluckNoiseBuffer = context.createBuffer(1, pluckNoiseBufferSize, context.sampleRate);
-            const pluckNoiseOutput = pluckNoiseBuffer.getChannelData(0);
-            for (let i = 0; i < pluckNoiseBufferSize; i++) {
-                pluckNoiseOutput[i] = Math.random() * 2 - 1;
-            }
-            pluckNoise.buffer = pluckNoiseBuffer;
-            const pluckNoiseGain = context.createGain();
-            pluckNoiseGain.gain.setValueAtTime(0.3, time);
-            pluckNoiseGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
-            pluckNoise.connect(pluckNoiseFilter);
-            pluckNoiseFilter.connect(pluckNoiseGain);
-            pluckNoiseGain.connect(masterGain);
-
-            // Body resonance (subtle)
-            const bodyResonance = context.createOscillator();
-            bodyResonance.type = 'sine';
-            bodyResonance.frequency.setValueAtTime(frequency * 0.25, time); // Two octaves down
-            const bodyGain = context.createGain();
-            bodyGain.gain.setValueAtTime(0.1, time);
-            bodyGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.3);
-            bodyResonance.connect(bodyGain);
-            bodyGain.connect(masterGain);
-
-            filter.connect(masterGain);
-            masterGain.connect(context.destination);
-
-            pluckNoise.start(time);
-            bodyResonance.start(time);
-            bodyResonance.stop(time + 0.3);
-
-            return {
-                oscillator: {
-                    stop: (stopTime) => oscillators.forEach(o => o.stop(stopTime))
-                },
-                gainNode: masterGain
-            };
-        }
-        case 'flute':
-            oscillator = context.createOscillator();
-            gainNode = context.createGain();
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(frequency, time);
-
-            // White noise for breathiness - reduced and shorter
-            const whiteNoise = context.createBufferSource();
-            const bufferSize = context.sampleRate * 0.5; // Shorter noise duration
-            const noiseBuffer = context.createBuffer(1, bufferSize, context.sampleRate);
-            const output = noiseBuffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                output[i] = Math.random() * 2 - 1; // White noise
-            }
-            whiteNoise.buffer = noiseBuffer;
-            whiteNoise.loop = false; // No loop
-
-            const noiseGain = context.createGain();
-            noiseGain.gain.setValueAtTime(0.01, time); // Even more subtle noise level
-            noiseGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.1); // Quick decay
-
-            whiteNoise.connect(noiseGain);
-            noiseGain.connect(gainNode); // Mix noise with main gain
-
-            // Subtle Vibrato LFO
-            fluteVibratoLFO = context.createOscillator();
-            fluteVibratoLFO.type = 'sine';
-            fluteVibratoLFO.frequency.setValueAtTime(4, time); // 4 Hz vibrato rate
-
-            const fluteVibratoGain = context.createGain();
-            fluteVibratoGain.gain.setValueAtTime(frequency * 0.005, time); // Subtle vibrato depth
-
-            fluteVibratoLFO.connect(fluteVibratoGain);
-            fluteVibratoGain.connect(oscillator.frequency); // Connect LFO to oscillator frequency
-
-            // ADSR envelope for gain (softer attack, longer release for floaty sound)
-            gainNode.gain.setValueAtTime(0.0001, time); // Start very low
-            gainNode.gain.linearRampToValueAtTime(0.075, time + 0.1); // Gentle attack
-            gainNode.gain.linearRampToValueAtTime(0.3, time + noteDuration * 0.8); // Sustain
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.5); // Longer, floaty release
-
-            oscillator.connect(gainNode);
-            gainNode.connect(context.destination);
-
-            oscillator.start(time);
-            fluteVibratoLFO.start(time);
-            whiteNoise.start(time);
-
-            oscillator.stop(time + noteDuration * 1.5);
-            fluteVibratoLFO.stop(time + noteDuration * 1.5);
-            whiteNoise.stop(time + 0.15); // Stop white noise quickly
-            break;
-        case 'trumpet':
-            oscillator = context.createOscillator();
-            gainNode = context.createGain();
-            const trumpetFilter = context.createBiquadFilter();
-
-            // Main oscillator for the brassy tone
-            oscillator.type = 'sawtooth';
-            oscillator.frequency.setValueAtTime(frequency, time);
-
-            // --- Airy Breath Sound ---
-            const trumpetNoise = context.createBufferSource();
-            const trumpetBufferSize = context.sampleRate * (noteDuration * 1.5);
-            const trumpetNoiseBuffer = context.createBuffer(1, trumpetBufferSize, context.sampleRate);
-            const trumpetOutput = trumpetNoiseBuffer.getChannelData(0);
-            for (let i = 0; i < trumpetBufferSize; i++) {
-                trumpetOutput[i] = (Math.random() * 2 - 1) * 0.5;
-            }
-            trumpetNoise.buffer = trumpetNoiseBuffer;
-            trumpetNoise.loop = false;
-
-            const trumpetNoiseGain = context.createGain();
-            trumpetNoiseGain.gain.setValueAtTime(0.05, time);
-            trumpetNoiseGain.gain.linearRampToValueAtTime(0.02, time + 0.1);
-            trumpetNoiseGain.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration);
-
-            trumpetNoise.connect(trumpetNoiseGain);
-            trumpetNoiseGain.connect(gainNode);
-
-            // --- Brassy Filter Envelope ---
-            trumpetFilter.type = 'lowpass';
-            trumpetFilter.Q.setValueAtTime(2, time);
-            trumpetFilter.frequency.setValueAtTime(frequency * 1.5, time);
-            trumpetFilter.frequency.linearRampToValueAtTime(frequency * 3, time + 0.1);
-            trumpetFilter.frequency.linearRampToValueAtTime(frequency * 2, time + noteDuration);
-
-            // --- Main Gain Envelope ---
-            gainNode.gain.setValueAtTime(0, time);
-            gainNode.gain.linearRampToValueAtTime(0.15, time + 0.05);
-            gainNode.gain.linearRampToValueAtTime(0.4, time + noteDuration * 0.7);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.5);
-
-            // --- Vibrato ---
-            vibratoLFO = context.createOscillator();
-            vibratoLFO.type = 'sine';
-            vibratoLFO.frequency.setValueAtTime(5, time);
-
-            vibratoGain = context.createGain();
-            vibratoGain.gain.setValueAtTime(frequency * 0.01, time);
-
-            vibratoLFO.connect(vibratoGain);
-            vibratoGain.connect(oscillator.frequency);
-
-            // --- Connections ---
-            oscillator.connect(trumpetFilter);
-            trumpetFilter.connect(gainNode);
-            gainNode.connect(context.destination);
-
-            // --- Start and Stop ---
-            oscillator.start(time);
-            trumpetNoise.start(time);
-            vibratoLFO.start(time);
-
-            oscillator.stop(time + noteDuration * 1.5);
-            trumpetNoise.stop(time + noteDuration * 1.5);
-            vibratoLFO.stop(time + noteDuration * 1.5);
-            break;
-        case 'strings': {
-            const masterGain = context.createGain();
-            const stringsFilter = context.createBiquadFilter();
-            stringsFilter.type = 'lowpass';
-            stringsFilter.Q.setValueAtTime(0.7, time); // Lower resonance to reduce buzz
-
-            const initialCutoff = Math.min(1500 + frequency * 1.5, 10000);
-            stringsFilter.frequency.setValueAtTime(initialCutoff, time);
-            stringsFilter.frequency.exponentialRampToValueAtTime(initialCutoff / 2.5, time + noteDuration * 1.2);
-
-            // --- Vibrato (Pitch Modulation) ---
-            const stringsVibratoLFO = context.createOscillator();
-            stringsVibratoLFO.type = 'sine';
-            stringsVibratoLFO.frequency.setValueAtTime(4.5, time); // Slightly slower vibration
-            const stringsVibratoGain = context.createGain();
-            stringsVibratoGain.gain.setValueAtTime(2, time); // Reduced depth - even more subtle
-            stringsVibratoLFO.connect(stringsVibratoGain);
-
-            // --- Tremolo (Amplitude Modulation) ---
-            const stringsTremoloLFO = context.createOscillator();
-            stringsTremoloLFO.type = 'sine';
-            stringsTremoloLFO.frequency.setValueAtTime(3.5, time); // Slower pulse
-            const stringsTremoloGain = context.createGain();
-            stringsTremoloGain.gain.setValueAtTime(0.03, time); // Reduced modulation to 3%
-            stringsTremoloLFO.connect(stringsTremoloGain);
-            stringsTremoloGain.connect(masterGain.gain); // Connect to the master gain
-
-            masterGain.gain.setValueAtTime(0.125, time); // Set initial gain before modulation
-            masterGain.gain.linearRampToValueAtTime(0.5, time + 0.01);
-            masterGain.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration * 1.5);
-
-            const oscillators = [];
-            const numStrings = 3;
-            const baseStrumDelay = 0.011;
-            const strumUp = Math.random() > 0.5;
-
-            for (let i = 0; i < numStrings; i++) {
-                const osc = context.createOscillator();
-                osc.type = 'triangle';
-                const detune = (Math.random() - 0.5) * 10;
-                osc.detune.setValueAtTime(detune, time);
-                stringsVibratoGain.connect(osc.detune); // Apply vibrato to each oscillator
-                osc.frequency.setValueAtTime(frequency, time);
-
-                const randomizedDelay = baseStrumDelay + (Math.random() - 0.5) * 0.006;
-                const currentStringDelay = strumUp ? (numStrings - 1 - i) * randomizedDelay : i * randomizedDelay;
-
-                osc.connect(stringsFilter);
-                osc.start(time + currentStringDelay);
-                osc.stop(time + noteDuration * 1.5 + currentStringDelay);
-                oscillators.push(osc);
-            }
-
-            const pickNoise = context.createBufferSource();
-            const pickNoiseFilter = context.createBiquadFilter();
-            pickNoiseFilter.type = 'highpass';
-            pickNoiseFilter.frequency.setValueAtTime(Math.min(2000 + frequency, 8000), time);
-            pickNoiseFilter.Q.setValueAtTime(5, time);
-
-            const pickNoiseBufferSize = context.sampleRate * 0.01;
-            const pickNoiseBuffer = context.createBuffer(1, pickNoiseBufferSize, context.sampleRate);
-            const pickNoiseOutput = pickNoiseBuffer.getChannelData(0);
-            for (let i = 0; i < pickNoiseBufferSize; i++) {
-                pickNoiseOutput[i] = Math.random() * 2 - 1;
-            }
-            pickNoise.buffer = pickNoiseBuffer;
-            const pickNoiseGain = context.createGain();
-            pickNoiseGain.gain.setValueAtTime(0.3, time); // Reduced volume
-            pickNoiseGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.015);
-            pickNoise.connect(pickNoiseFilter);
-            pickNoiseFilter.connect(pickNoiseGain);
-            pickNoiseGain.connect(masterGain);
-
-            const bodyResonance = context.createOscillator();
-            bodyResonance.type = 'sine';
-            bodyResonance.frequency.setValueAtTime(frequency * 0.5, time);
-            const bodyGain = context.createGain();
-            const bodyVolume = Math.max(0, 0.15 - (frequency / 10000));
-            bodyGain.gain.setValueAtTime(bodyVolume, time);
-            bodyGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.2);
-            bodyResonance.connect(bodyGain);
-            bodyGain.connect(masterGain);
-
-            stringsFilter.connect(masterGain);
-            masterGain.connect(context.destination);
-
-            pickNoise.start(time);
-            bodyResonance.start(time);
-            stringsVibratoLFO.start(time);
-            stringsTremoloLFO.start(time);
-
-            bodyResonance.stop(time + 0.2);
-            stringsVibratoLFO.stop(time + noteDuration * 1.5);
-            stringsTremoloLFO.stop(time + noteDuration * 1.5);
-
-            return {
-                oscillator: {
-                    stop: (stopTime) => {
-                        oscillators.forEach(o => o.stop(stopTime));
-                    }
-                },
-                gainNode: masterGain
-            };
-        }
-        break;
-        default:
-            // Fallback to default waveform if instrument not recognized
-            oscillator = context.createOscillator();
-            gainNode = context.createGain();
-            oscillator.type = waveformSelect.value;
-            oscillator.frequency.setValueAtTime(frequency, time);
-            gainNode.gain.setValueAtTime(0.4, time);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, time + noteDuration);
-            oscillator.connect(gainNode);
-            gainNode.connect(context.destination);
-            oscillator.start(time);
-            oscillator.stop(time + noteDuration);
-            break;
-    }
-    return { oscillator, gainNode };
+// Helper functions for logarithmic volume control
+function logToLinear(value) {
+    // Slider value (0-100) to gain (0-1)
+    return Math.pow(value / 100, 2);
 }
 
-function playSFX(sfxType, time, duration, frequency, context = audioContext) {
-    if (context.state === 'suspended') {
-        context.resume();
-    }
-
-    const actualTime = time || context.currentTime; // Use scheduled time or current time
-    const actualDuration = duration || 0.5; // Default SFX duration if not provided
-
-    const oscillator = context.createOscillator();
-    const gainNode = context.createGain();
-
-    switch (sfxType) {
-        case 'coin':
-            // First tone
-            const osc1 = context.createOscillator();
-            const gain1 = context.createGain();
-            osc1.type = 'triangle';
-            osc1.frequency.setValueAtTime(1000 * (frequency / baseNoteFrequencyForSFX), actualTime);
-            gain1.gain.setValueAtTime(0.1, actualTime);
-            gain1.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.05);
-            osc1.connect(gain1);
-            gain1.connect(context.destination);
-            osc1.start(actualTime);
-            osc1.stop(actualTime + 0.05);
-
-            // Second tone, slightly higher and immediately after
-            const osc2 = context.createOscillator();
-            const gain2 = context.createGain();
-            osc2.type = 'triangle';
-            osc2.frequency.setValueAtTime(1200 * (frequency / baseNoteFrequencyForSFX), actualTime + 0.03); // Start slightly after
-            gain2.gain.setValueAtTime(0.1, actualTime + 0.03);
-            gain2.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.08);
-            osc2.connect(gain2);
-            gain2.connect(context.destination);
-            osc2.start(actualTime + 0.03);
-            osc2.stop(actualTime + 0.08);
-            return; // Return early as we are handling multiple oscillators
-        case 'jump':
-            oscillator.type = 'square';
-            oscillator.frequency.setValueAtTime(400 * (frequency / baseNoteFrequencyForSFX), actualTime); // Scale frequency
-            oscillator.frequency.linearRampToValueAtTime(800 * (frequency / baseNoteFrequencyForSFX), actualTime + 0.1); // Scale frequency
-            gainNode.gain.setValueAtTime(0.1, actualTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.2);
-            oscillator.start(actualTime);
-            oscillator.stop(actualTime + 0.2);
-            break;
-        case 'laser':
-            oscillator.type = 'sawtooth';
-            oscillator.frequency.setValueAtTime(800 * (frequency / baseNoteFrequencyForSFX), actualTime); // Scale frequency
-            oscillator.frequency.linearRampToValueAtTime(100 * (frequency / baseNoteFrequencyForSFX), actualTime + 0.2); // Scale frequency
-            gainNode.gain.setValueAtTime(0.1, actualTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.2);
-            oscillator.start(actualTime);
-            oscillator.stop(actualTime + 0.2);
-            break;
-        case 'explosion':
-            // Noise burst for explosion (frequency scaling doesn't apply here)
-            const bufferSize = context.sampleRate * 0.5; // 0.5 seconds of noise
-            const noiseBuffer = context.createBuffer(1, bufferSize, context.sampleRate);
-            const output = noiseBuffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                output[i] = Math.random() * 2 - 1; // White noise
-            }
-            const noiseSource = context.createBufferSource();
-            noiseSource.buffer = noiseBuffer;
-            
-            gainNode.gain.setValueAtTime(0.15, actualTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.5);
-
-            noiseSource.connect(gainNode);
-            gainNode.connect(context.destination);
-            noiseSource.start(actualTime);
-            noiseSource.stop(actualTime + 0.5);
-            return; // Noise doesn't use an oscillator
-        case 'blip':
-            oscillator.type = 'square';
-            oscillator.frequency.setValueAtTime(800 * (frequency / baseNoteFrequencyForSFX), actualTime);
-            gainNode.gain.setValueAtTime(0.075, actualTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.05);
-            oscillator.start(actualTime);
-            oscillator.stop(actualTime + 0.05);
-            break;
-        case 'powerup':
-            oscillator.type = 'triangle';
-            oscillator.frequency.setValueAtTime(400 * (frequency / baseNoteFrequencyForSFX), actualTime);
-            oscillator.frequency.linearRampToValueAtTime(800 * (frequency / baseNoteFrequencyForSFX), actualTime + 0.2);
-            gainNode.gain.setValueAtTime(0.1, actualTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.3);
-            oscillator.start(actualTime);
-            oscillator.stop(actualTime + 0.3);
-            break;
-        case 'hit':
-            oscillator.type = 'sawtooth';
-            oscillator.frequency.setValueAtTime(200 * (frequency / baseNoteFrequencyForSFX), actualTime);
-            gainNode.gain.setValueAtTime(0.125, actualTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, actualTime + 0.1);
-            oscillator.start(actualTime);
-            oscillator.stop(actualTime + 0.1);
-            break;
-        default:
-            return;
-    }
-
-    oscillator.connect(gainNode);
-    gainNode.connect(context.destination);
+function linearToLog(value) {
+    // Gain (0-1) to slider value (0-100)
+    return Math.sqrt(value) * 100;
 }
 
 sfxSelect.addEventListener('change', (event) => {
@@ -1577,6 +1041,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bpmValueSpan.textContent = bpmInput.value;
     adjustLayout();
     updateTotalDurationAndDisplay();
+    renderBusMixer(); // Render the bus mixer on load
 
     // Enable the saveMp3Button only if lamejs is defined
     if (typeof lamejs !== 'undefined') {
@@ -1613,65 +1078,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function saveProject() {
     const projectData = {
-        layers: layers,
         bpm: bpmInput.value,
+        masterGain: masterGainNode.gain.value,
+        layers: layers.map(layer => ({
+            id: layer.id,
+            name: layer.name,
+            grid: layer.grid,
+            instrument: layer.instrument,
+            waveform: layer.waveform,
+            sfx: layer.sfx,
+            octave: layer.octave,
+            isMuted: layer.isMuted,
+            gainValue: layer.gainValue
+        }))
     };
 
     const dataStr = JSON.stringify(projectData);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const fileName = currentProjectFileName;
 
-    try {
-        const key = await window.crypto.subtle.generateKey(
-            { name: "AES-GCM", length: 256 },
-            true,
-            ["encrypt", "decrypt"]
-        );
-        const iv = window.crypto.getRandomValues(new Uint8Array(12)); // AES-GCM IV is 12 bytes
-
-        const encoded = new TextEncoder().encode(dataStr);
-        const ciphertext = await window.crypto.subtle.encrypt(
-            {
-                name: "AES-GCM",
-                iv: iv,
-            },
-            key,
-            encoded
-        );
-
-        const exportedKey = await window.crypto.subtle.exportKey("jwk", key);
-
-        const encryptedData = {
-            key: exportedKey,
-            iv: Array.from(iv),
-            ciphertext: Array.from(new Uint8Array(ciphertext))
-        };
-
-        const encryptedDataStr = JSON.stringify(encryptedData);
-        const blob = new Blob([encryptedDataStr], { type: 'application/json' });
-        const fileName = currentProjectFileName;
-
-        if ('showSaveFilePicker' in window) {
-            try {
-                const handle = await window.showSaveFilePicker({
-                    suggestedName: fileName,
-                    types: [{
-                        description: 'Chiptuned Project File',
-                        accept: { 'application/json': ['.cht'] },
-                    }],
-                });
-                const writable = await handle.createWritable();
-                await writable.write(blob);
-                await writable.close();
-            } catch (err) {
-                if (err.name !== 'AbortError') {
-                    console.error('Error saving project using File System Access API:', err);
-                    fallbackSave(blob, fileName);
-                }
+    if ('showSaveFilePicker' in window) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: fileName,
+                types: [{
+                    description: 'Chiptuned Project File',
+                    accept: { 'application/json': ['.cht'] },
+                }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.error('Error saving project using File System Access API:', err);
+                fallbackSave(blob, fileName);
             }
-        } else {
-            fallbackSave(blob, fileName);
         }
-    } catch (error) {
-        console.error('Encryption failed:', error);
+    } else {
+        fallbackSave(blob, fileName);
     }
 }
 
@@ -1687,7 +1132,59 @@ function fallbackSave(blob, fileName) {
 }
 
 async function loadProject(data) {
+    // Helper function to process the loaded data, whether decrypted or not
+    const processLoadedData = (loadedData) => {
+        // Basic validation
+        if (!loadedData || typeof loadedData !== 'object' || !loadedData.layers || !loadedData.bpm) {
+            throw new Error("Invalid project data format.");
+        }
+
+        // Clear existing layers and their gain nodes
+        layers.forEach(layer => {
+            if (layer.gainNode) {
+                layer.gainNode.disconnect();
+            }
+        });
+        layers = [];
+
+        // Load master gain
+        if (typeof loadedData.masterGain === 'number') {
+            masterGainNode.gain.value = loadedData.masterGain;
+        }
+
+        // Recreate layers with their gain nodes
+        loadedData.layers.forEach(loadedLayer => {
+            const newGainNode = audioContext.createGain();
+            newGainNode.connect(masterGainNode);
+            
+            // Set gain value, with a default for older projects
+            const gainValue = typeof loadedLayer.gainValue === 'number' ? loadedLayer.gainValue : 0.7;
+            newGainNode.gain.value = gainValue;
+
+            layers.push({
+                ...loadedLayer,
+                gainNode: newGainNode,
+                gainValue: gainValue // Ensure gainValue is explicitly set on the new layer object
+            });
+        });
+
+        activeLayerIndex = 0;
+        renderActiveLayer();
+        renderLayerList();
+
+        // Load BPM
+        if (typeof loadedData.bpm === 'string' || typeof loadedData.bpm === 'number') {
+            bpmInput.value = loadedData.bpm;
+            bpmValueSpan.textContent = loadedData.bpm;
+        }
+        updateTotalDurationAndDisplay();
+
+        updateGridDisplay(); // Update the visual grid based on loaded data
+        renderBusMixer(); // Render the bus mixer after loading
+    };
+
     try {
+        // First, try to decrypt the project data as if it's a new, encrypted project
         const importedKey = await window.crypto.subtle.importKey(
             "jwk",
             data.key,
@@ -1708,55 +1205,17 @@ async function loadProject(data) {
         );
 
         const decodedDataStr = new TextDecoder().decode(decrypted);
-        const loadedData = JSON.parse(decodedDataStr);
-
-        // Security check: Ensure all expected fields are present and no extra fields
-        const expectedFields = ['layers', 'bpm'];
-        const actualFields = Object.keys(loadedData);
-
-        for (const field of expectedFields) {
-            if (!(field in loadedData)) {
-                throw new Error(`Missing expected field: ${field}`);
-            }
-        }
-
-        for (const field of actualFields) {
-            if (!expectedFields.includes(field)) {
-                throw new Error(`Unexpected field found: ${field}`);
-            }
-        }
-
-        layers = loadedData.layers;
-        activeLayerIndex = 0;
-        renderActiveLayer();
-        renderLayerList();
-
-
-        // Load BPM
-        if (typeof loadedData.bpm === 'string' || typeof loadedData.bpm === 'number') {
-            bpmInput.value = loadedData.bpm;
-            bpmValueSpan.textContent = loadedData.bpm;
-        }
-        updateTotalDurationAndDisplay();
-
-        updateGridDisplay(); // Update the visual grid based on loaded data
+        const decryptedData = JSON.parse(decodedDataStr);
+        processLoadedData(decryptedData);
 
     } catch (error) {
-        console.error('Decryption failed:', error);
-        // As a fallback for old projects, try to load without decryption
+        console.error('Decryption failed, attempting to load as unencrypted project:', error);
+        // As a fallback for old or unencrypted projects, try to load the data directly
         try {
-            const loadedData = JSON.parse(data);
-            layers = loadedData.layers;
-            activeLayerIndex = 0;
-            renderActiveLayer();
-            renderLayerList();
-            if (typeof loadedData.bpm === 'string' || typeof loadedData.bpm === 'number') {
-                bpmInput.value = loadedData.bpm;
-                bpmValueSpan.textContent = loadedData.bpm;
-            }
-            updateGridDisplay();
+            processLoadedData(data);
         } catch (e) {
-            console.error('Could not load project as unencrypted data either.', e);
+            console.error('Could not load project. It may be corrupt or in an invalid format.', e);
+            alert('Could not load project file. It may be corrupt or in an invalid format.');
         }
     }
 }
@@ -1903,14 +1362,17 @@ function adjustLayout() {
     const mainAppWindow = document.getElementById('main-app-window');
     const layerContainer = document.getElementById('layer-container');
     const topWindow = document.getElementById('top-window');
+    const bottomWindow = document.getElementById('bottom-window');
 
     if (mainAppWindow && layerContainer) {
         const mainHeight = mainAppWindow.offsetHeight;
         layerContainer.style.height = `${mainHeight}px`;
     }
 
-    if (mainAppWindow && topWindow) {
-        topWindow.style.width = `${mainAppWindow.offsetWidth}px`;
+    if (mainAppWindow && topWindow && bottomWindow) {
+        const newWidth = mainAppWindow.offsetWidth;
+        topWindow.style.width = `${newWidth}px`;
+        bottomWindow.style.width = `${newWidth}px`;
     }
 }
 
