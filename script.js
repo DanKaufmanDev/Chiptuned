@@ -1,7 +1,4 @@
 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-const waveformSelect = document.getElementById('waveform');
-const instrumentSelect = document.getElementById('instrument');
-const sfxSelect = document.getElementById('sfx');
 const gridContainer = document.getElementById('grid-container');
 const noteLabelsContainer = document.getElementById('note-labels');
 const bpmInput = document.getElementById('bpm');
@@ -21,7 +18,12 @@ const columnHighlight = document.getElementById('column-highlight');
 const bpmTextInput = document.getElementById('bpm-text-input');
 const addLayerButton = document.getElementById('add-layer');
 const layerListContainer = document.getElementById('layer-list');
-const busMixerContainer = document.getElementById('bus-mixer-container'); // New
+const busMixerContainer = document.getElementById('bus-mixer-container');
+const soundsPanel = document.getElementById('sounds-panel');
+
+const waveforms = ['square', 'sine', 'sawtooth', 'triangle'];
+const instruments = ['piano', 'organ', 'synth_lead', 'bass', 'flute', 'trumpet', 'strings'];
+const sfx = ['coin', 'jump', 'laser', 'explosion', 'blip', 'powerup', 'hit'];
 
 let layers = [];
 let activeLayerIndex = -1;
@@ -47,6 +49,7 @@ let dragStartCol = -1;
 let dragStartRow = -1;
 let currentNote = null; // Stores the note object being dragged/modified
 let anchorCol = -1;
+let activeTool = 'draw'; // New: To track the currently active tool, default to 'draw'
 let currentProjectFileName = 'my_chiptuned_project.cht'; // New global variable to store the current project filename
 let totalSequenceDuration = 0; // Total duration of the sequence in seconds
 let playbackStartTime = 0; // AudioContext time when playback started
@@ -92,7 +95,7 @@ function createNewLayer(name) {
         id: Date.now(),
         name: name,
         grid: Array(numRows).fill(null).map(() => []),
-        instrument: 'default',
+        instrument: '',
         waveform: 'square',
         sfx: '',
         octave: 4,
@@ -255,20 +258,108 @@ function renderLayerList() {
     });
 }
 
+function renderSoundSelectionButtons() {
+    soundsPanel.innerHTML = ''; // Clear existing buttons
+
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer) return; // No active layer yet
+
+    const createButton = (type, value, label) => {
+        const button = document.createElement('button');
+        button.textContent = label;
+        button.classList.add('sound-select-button', 'retro-button', 'px-4', 'py-2', 'mb-2', 'w-full');
+        button.dataset.type = type;
+        button.dataset.value = value;
+
+        let isActive = false;
+        if (activeLayer.sfx) { // If an SFX is selected
+            if (type === 'sfx' && activeLayer.sfx === value) {
+                isActive = true;
+            }
+        } else if (activeLayer.instrument) { // If an Instrument is selected (and no SFX)
+            if (type === 'instrument' && activeLayer.instrument === value) {
+                isActive = true;
+            }
+        } else { // If neither SFX nor Instrument is selected, then a Waveform must be active
+            if (type === 'waveform' && activeLayer.waveform === value) {
+                isActive = true;
+            }
+        }
+
+        if (isActive) {
+            button.classList.add('active');
+        }
+
+        button.addEventListener('click', () => {
+            const clickedType = type;
+            const clickedValue = value;
+
+            // Reset all sound properties for the active layer
+            activeLayer.waveform = 'square'; // Default waveform
+            activeLayer.instrument = '';      // No instrument
+            activeLayer.sfx = '';             // No SFX
+
+            // Set the property corresponding to the clicked button
+            if (clickedType === 'waveform') {
+                activeLayer.waveform = clickedValue;
+            } else if (clickedType === 'instrument') {
+                activeLayer.instrument = clickedValue;
+            } else if (clickedType === 'sfx') {
+                activeLayer.sfx = clickedValue;
+            }
+
+            renderSoundSelectionButtons(); // Re-render to update active state
+        });
+        return button;
+    };
+
+    // Waveforms
+    const waveformHeader = document.createElement('h3');
+    waveformHeader.textContent = 'Waveforms';
+    waveformHeader.classList.add('text-xl', 'font-bold', 'mb-2', 'text-white');
+    soundsPanel.appendChild(waveformHeader);
+    waveforms.forEach(wf => soundsPanel.appendChild(createButton('waveform', wf, wf.charAt(0).toUpperCase() + wf.slice(1))));
+
+    // Instruments
+    const instrumentHeader = document.createElement('h3');
+    instrumentHeader.textContent = 'Instruments';
+    instrumentHeader.classList.add('text-xl', 'font-bold', 'mb-2', 'mt-4', 'text-white');
+    soundsPanel.appendChild(instrumentHeader);
+    instruments.forEach(inst => soundsPanel.appendChild(createButton('instrument', inst, inst.charAt(0).toUpperCase() + inst.slice(1))));
+
+    // SFX
+    const sfxHeader = document.createElement('h3');
+    sfxHeader.textContent = 'SFX';
+    sfxHeader.classList.add('text-xl', 'font-bold', 'mb-2', 'mt-4', 'text-white');
+    soundsPanel.appendChild(sfxHeader);
+    sfx.forEach(s => {
+        soundsPanel.appendChild(createButton('sfx', s, s.charAt(0).toUpperCase() + s.slice(1)));
+    });
+}
+
 function switchLayer(index, force = false) {
     if (activeLayerIndex === index && !force) return;
     activeLayerIndex = index;
     renderActiveLayer();
     renderLayerList();
-    renderBusMixer(); // Add this line to update the mixer
+    renderBusMixer();
+    renderSoundSelectionButtons(); // Call this to update sound buttons
+}
+
+function renderToolButtons() {
+    const toolButtons = document.querySelectorAll('#sequencer-tools .retro-button');
+    toolButtons.forEach(button => {
+        if (button.dataset.toolId === activeTool) {
+            button.classList.add('active');
+        } else {
+            button.classList.remove('active');
+        }
+    });
 }
 
 function renderActiveLayer() {
     const activeLayer = layers[activeLayerIndex];
     grid = activeLayer.grid;
-    instrumentSelect.value = activeLayer.instrument;
-    waveformSelect.value = activeLayer.waveform;
-    sfxSelect.value = activeLayer.sfx;
     currentOctave = activeLayer.octave;
     updateNotesAndFrequencies();
     updateGridDisplay();
@@ -482,11 +573,11 @@ function scheduleNote(beatNumber, time) {
                     playSFX(selectedSfx, time, noteDurationInSeconds, noteFrequency);
                 } else {
                     const selectedInstrument = layer.instrument;
-                    if (selectedInstrument === 'default') {
-                        const { oscillator, gainNode } = playSound(layer.waveform, noteFrequency, time, noteDurationInSeconds, audioContext, layer.gainNode);
-                        playingNodes.push({ oscillator, gainNode });
-                    } else {
+                    if (selectedInstrument) { // Check if an instrument is selected
                         const { oscillator, gainNode } = playInstrument(selectedInstrument, noteFrequency, time, noteDurationInSeconds, audioContext, layer.gainNode);
+                        playingNodes.push({ oscillator, gainNode });
+                    } else { // If no instrument, play waveform
+                        const { oscillator, gainNode } = playSound(layer.waveform, noteFrequency, time, noteDurationInSeconds, audioContext, layer.gainNode);
                         playingNodes.push({ oscillator, gainNode });
                     }
                 }
@@ -810,35 +901,7 @@ function linearToLog(value) {
     return Math.sqrt(value) * 100;
 }
 
-sfxSelect.addEventListener('change', (event) => {
-    const selectedSfx = event.target.value;
-    layers[activeLayerIndex].sfx = selectedSfx; // Save to active layer
-    if (selectedSfx) {
-        // Clear instrument and waveform selections when an SFX is chosen
-        layers[activeLayerIndex].instrument = 'default'; // Save to active layer
-        layers[activeLayerIndex].waveform = 'square'; // Save to active layer
-        instrumentSelect.value = 'default';
-        waveformSelect.value = 'square';
-    }
-});
 
-waveformSelect.addEventListener('change', () => {
-    layers[activeLayerIndex].waveform = waveformSelect.value; // Save to active layer
-    // Clear SFX selection and reset instrument when waveform is changed
-    layers[activeLayerIndex].sfx = ''; // Save to active layer
-    layers[activeLayerIndex].instrument = 'default'; // Save to active layer
-    sfxSelect.value = '';
-    instrumentSelect.value = 'default';
-});
-
-instrumentSelect.addEventListener('change', () => {
-    layers[activeLayerIndex].instrument = instrumentSelect.value; // Save to active layer
-    // Clear SFX selection and reset waveform when instrument is changed
-    layers[activeLayerIndex].sfx = ''; // Save to active layer
-    layers[activeLayerIndex].waveform = 'square'; // Save to active layer
-    sfxSelect.value = '';
-    waveformSelect.value = 'square';
-});
 
 bpmInput.addEventListener('input', () => {
     bpmValueSpan.textContent = bpmInput.value;
@@ -916,12 +979,11 @@ clearGridButton.addEventListener('click', () => {
 randomGridButton.addEventListener('click', () => {
     // --- 1. Randomize settings ---
     // Random Waveform
-    const waveformOptions = waveformSelect.options;
-    const randomWaveformIndex = Math.floor(Math.random() * waveformOptions.length);
-    layers[activeLayerIndex].waveform = waveformOptions[randomWaveformIndex].value;
+    const randomWaveformIndex = Math.floor(Math.random() * waveforms.length);
+    layers[activeLayerIndex].waveform = waveforms[randomWaveformIndex];
 
-    // Reset Instrument and SFX dropdowns
-    layers[activeLayerIndex].instrument = 'default';
+    // Reset Instrument and SFX
+    layers[activeLayerIndex].instrument = '';
     layers[activeLayerIndex].sfx = '';
 
     // Random Octave
@@ -974,6 +1036,7 @@ randomGridButton.addEventListener('click', () => {
             layers[activeLayerIndex].grid[noteRow].push({ start: col, end: col });
         }
     }
+    renderSoundSelectionButtons(); // Update sound buttons after randomization
     setTimeout(() => {
         renderActiveLayer();
         renderLayerList();
@@ -1006,6 +1069,7 @@ document.addEventListener('DOMContentLoaded', () => {
     bpmValueSpan.textContent = bpmInput.value;
     updateTotalDurationAndDisplay();
     renderBusMixer(); // Render the bus mixer on load
+    renderSoundSelectionButtons(); // Render sound selection buttons on load
 
     // Enable the saveMp3Button only if lamejs is defined
     if (typeof lamejs !== 'undefined') {
@@ -1038,6 +1102,19 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         input.click();
     });
+
+    // Initialize tool buttons
+    const sequencerToolsContainer = document.getElementById('sequencer-tools');
+    if (sequencerToolsContainer) {
+        sequencerToolsContainer.addEventListener('click', (e) => {
+            const button = e.target.closest('.retro-button');
+            if (button && button.dataset.toolId) {
+                activeTool = button.dataset.toolId;
+                renderToolButtons();
+            }
+        });
+    }
+    renderToolButtons(); // Initial render of tool buttons
 });
 
 async function saveProject() {
@@ -1195,16 +1272,7 @@ async function loadProject(data) {
 
 saveMp3Button.addEventListener('click', async () => {
     const bpm = parseFloat(bpmInput.value);
-    let activeSoundType = '';
-    if (sfxSelect.value) {
-        activeSoundType = sfxSelect.value;
-    } else if (instrumentSelect.value !== 'default') {
-        activeSoundType = instrumentSelect.value;
-    } else {
-        activeSoundType = waveformSelect.value;
-    }
-
-    const fileName = `chiptuned_${bpm}BPM_${activeSoundType}.mp3`;
+    const fileName = `chiptuned_${bpm}BPM_${layers[activeLayerIndex].sfx || layers[activeLayerIndex].instrument || layers[activeLayerIndex].waveform}.mp3`;
 
     const noteDurationPerColumn = 60 / bpm;
 
@@ -1260,7 +1328,7 @@ saveMp3Button.addEventListener('click', async () => {
                 // Use the existing play functions, passing the offline context and the layer's offline gain node
                 if (layer.sfx) {
                     playSFX(layer.sfx, noteStartTime, noteDuration, noteFrequency, offlineAudioContext, offlineLayerGain);
-                } else if (layer.instrument !== 'default') {
+                } else if (layer.instrument) {
                     playInstrument(layer.instrument, noteFrequency, noteStartTime, noteDuration, offlineAudioContext, offlineLayerGain);
                 } else {
                     playSound(layer.waveform, noteFrequency, noteStartTime, noteDuration, offlineAudioContext, offlineLayerGain);

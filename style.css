@@ -40,6 +40,14 @@ body {
     box-shadow: 1px 1px 0px 0px var(--border-color-dark);
 }
 
+.retro-button.active {
+    background-color: #555555; /* Dark grey for active state */
+    border: 2px solid var(--border-color-dark);
+    border-right-color: var(--border-color-light);
+    border-bottom-color: var(--border-color-light);
+    box-shadow: 1px 1px 0px 0px var(--border-color-dark);
+}
+
 .retro-input, .retro-checkbox {
     border: 2px solid var(--border-color-dark);
     border-right-color: var(--border-color-light);
