@@ -45,11 +45,8 @@ let playingNodes = [];
 let isDragging = false;
 let dragStartCol = -1;
 let dragStartRow = -1;
-let isActivating = false;
-let lastDraggedCol = -1;
-let originalRowState = [];
 let currentNote = null; // Stores the note object being dragged/modified
-let dragTimeout = null;
+let anchorCol = -1;
 let currentProjectFileName = 'my_chiptuned_project.cht'; // New global variable to store the current project filename
 let totalSequenceDuration = 0; // Total duration of the sequence in seconds
 let playbackStartTime = 0; // AudioContext time when playback started
@@ -285,12 +282,14 @@ function addLayer() {
 }
 
 function toggleSingleNote(row, col) {
-    const existingNoteIndex = grid[row].findIndex(note => note.start === col && note.end === col);
+    // Find if any note exists at the clicked column
+    const existingNoteIndex = grid[row].findIndex(note => col >= note.start && col <= note.end);
+
     if (existingNoteIndex !== -1) {
-        // Note exists, remove it
+        // A note exists here, remove it.
         grid[row].splice(existingNoteIndex, 1);
     } else {
-        // Note does not exist, add it
+        // No note exists here, add a new single-cell note.
         grid[row].push({ start: col, end: col });
     }
     requestAnimationFrame(() => {
@@ -621,154 +620,91 @@ function handleMouseDown(e, row, col) {
 
     dragStartCol = col;
     dragStartRow = row;
-
-    // Set a timeout to differentiate between click and drag
-    dragTimeout = setTimeout(() => {
-        // If timeout completes, it's a click, so toggle single note
-        toggleSingleNote(row, col);
-        isDragging = false; // Reset dragging state
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-    }, 200); // 200ms delay
+    isDragging = false; // Reset drag state
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
 }
 
 function handleMouseMove(e) {
-    // If dragTimeout is still active, it means this is the first mousemove that initiates a drag
-    if (dragTimeout) {
-        clearTimeout(dragTimeout); // Clear the click timeout
-        isDragging = true; // Now it's definitely a drag
-
-        // Initialize currentNote based on whether we're activating or deactivating
-        const existingNoteIndex = grid[dragStartRow].findIndex(note => dragStartCol >= note.start && dragStartCol <= note.end);
-        if (existingNoteIndex !== -1) {
-            isActivating = false;
-            currentNote = grid[dragStartRow][existingNoteIndex];
-            grid[dragStartRow].splice(existingNoteIndex, 1); // Temporarily remove
-        } else {
-            isActivating = true;
-            currentNote = { start: dragStartCol, end: dragStartCol };
-            grid[dragStartRow].push(currentNote);
-        }
-    }
-
-    if (!isDragging) return; // Only proceed if a drag is active
-
     const targetCell = e.target.closest('.grid-cell');
-    if (!targetCell) return;
+    if (!targetCell || parseInt(targetCell.dataset.row) !== dragStartRow) return;
 
     const gridRect = gridContainer.getBoundingClientRect();
     const mouseX = e.clientX - gridRect.left;
     let currentCol = Math.floor(mouseX / effectiveColumnWidth);
     currentCol = Math.max(0, Math.min(numCols - 1, currentCol));
-    const currentRow = parseInt(targetCell.dataset.row);
 
-    if (currentRow !== dragStartRow) return; // Only allow horizontal dragging
-
-    // Calculate the initial proposed start and end based on drag direction
-    let proposedStart = dragStartCol;
-    let proposedEnd = currentCol;
-
-    if (currentCol < dragStartCol) {
-        proposedStart = currentCol;
-        proposedEnd = dragStartCol;
-    }
-
-    // If we are activating (drawing a new note), check for overlaps and cap
-    if (isActivating) {
-        const existingNotesInRow = grid[dragStartRow].filter(note => note !== currentNote);
-
-        for (const existingNote of existingNotesInRow) {
-            // Check for overlap with the proposed note
-            const overlapStart = Math.max(proposedStart, existingNote.start);
-            const overlapEnd = Math.min(proposedEnd, existingNote.end);
-
-            if (overlapStart <= overlapEnd) { // There is an overlap
-                if (currentCol > dragStartCol) { // Dragging right
-                    proposedEnd = existingNote.start - 1; // Cap the end before the occupied cell
-                } else { // Dragging left
-                    proposedStart = existingNote.end + 1; // Cap the start after the occupied cell
-                }
-                // After capping, ensure proposedStart is still <= proposedEnd
-                if (proposedStart > proposedEnd) {
-                    // If they've crossed, it means the note should effectively be a single cell
-                    // at the dragStartCol, or not exist if dragStartCol is also invalid.
-                    // For now, let's make it a single cell at dragStartCol if it becomes invalid.
-                    proposedStart = dragStartCol;
-                    proposedEnd = dragStartCol;
-                }
-                break; // Stop checking once an overlap is found and capped
-            }
+    // Only start a drag if the mouse has moved to a different column.
+    if (!isDragging && currentCol !== dragStartCol) {
+        isDragging = true;
+        const existingNote = grid[dragStartRow].find(note => dragStartCol >= note.start && dragStartCol <= note.end);
+        if (existingNote) {
+            currentNote = existingNote;
+            const distToStart = Math.abs(dragStartCol - currentNote.start);
+            const distToEnd = Math.abs(dragStartCol - currentNote.end);
+            anchorCol = (distToStart <= distToEnd) ? currentNote.end : currentNote.start;
+        } else {
+            currentNote = { start: dragStartCol, end: dragStartCol };
+            grid[dragStartRow].push(currentNote);
+            anchorCol = dragStartCol;
         }
     }
 
-    // Ensure proposedStart and proposedEnd are within overall grid bounds after capping
-    proposedStart = Math.max(0, Math.min(numCols - 1, proposedStart));
-    proposedEnd = Math.max(0, Math.min(numCols - 1, proposedEnd));
+    if (!isDragging) return;
 
-    // Assign the (potentially capped) proposed values to currentNote
+    if (!currentNote) return;
+
+    let proposedStart = Math.min(anchorCol, currentCol);
+    let proposedEnd = Math.max(anchorCol, currentCol);
+
+    const otherNotesInRow = grid[dragStartRow].filter(note => note !== currentNote);
+    for (const otherNote of otherNotesInRow) {
+        if (proposedStart <= otherNote.end && proposedEnd >= otherNote.start) {
+            if (currentCol > anchorCol) {
+                proposedEnd = otherNote.start - 1;
+            } else {
+                proposedStart = otherNote.end + 1;
+            }
+            break;
+        }
+    }
+
     currentNote.start = proposedStart;
     currentNote.end = proposedEnd;
 
-    renderDragFeedback();
-}
-
-let lastRenderedNote = null; // To keep track of the previously rendered drag feedback
-
-function renderDragFeedback() {
-    // Clear previous feedback
-    if (lastRenderedNote) {
-        for (let col = lastRenderedNote.start; col <= lastRenderedNote.end; col++) {
-            const cell = document.querySelector(`[data-row='${dragStartRow}'][data-col='${col}']`);
-            if (cell) {
-                cell.classList.remove('active');
-                cell.style.gridColumn = '';
-                cell.style.display = 'block';
-            }
-        }
-    }
-
-    // Render current feedback
-    if (currentNote) {
-        const startCell = document.querySelector(`[data-row='${dragStartRow}'][data-col='${currentNote.start}']`);
-        if (startCell) {
-            startCell.classList.add('active');
-            startCell.style.gridColumn = `${currentNote.start + 1} / ${currentNote.end + 2}`;
-            for (let col = currentNote.start + 1; col <= currentNote.end; col++) {
-                const cell = document.querySelector(`[data-row='${dragStartRow}'][data-col='${col}']`);
-                if (cell) {
-                    cell.style.display = 'none';
-                }
-            }
-        }
-    }
-    lastRenderedNote = { ...currentNote }; // Store a copy for next render
+    requestAnimationFrame(updateGridDisplay);
 }
 
 function handleMouseUp() {
-    clearTimeout(dragTimeout); // Clear any pending click timeout
+    // Stop listening for mouse movements.
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
 
-    // If no drag occurred, it was a single click
     if (!isDragging) {
+        // If the mouse never moved, it was a simple click.
         toggleSingleNote(dragStartRow, dragStartCol);
+    } else if (currentNote && currentNote.start > currentNote.end) {
+        // If the drag ended with the note being invalid (e.g., squashed to zero size by a collision), remove it.
+        const noteIndex = grid[dragStartRow].indexOf(currentNote);
+        if (noteIndex > -1) {
+            grid[dragStartRow].splice(noteIndex, 1);
+        }
     }
 
+    // Reset all state variables for the next drag operation.
     isDragging = false;
     dragStartCol = -1;
     dragStartRow = -1;
     currentNote = null;
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
+    anchorCol = -1;
 
-    // After drag, re-render the entire grid to ensure correctness
-    requestAnimationFrame(updateGridDisplay);
-    renderLayerList();
-    updateTotalDurationAndDisplay();
-
-    // Clear lastRenderedNote after drag is complete
-    lastRenderedNote = null;
+    // Perform a final render to commit the changes to the display.
+    requestAnimationFrame(() => {
+        updateGridDisplay();
+        renderLayerList();
+        updateTotalDurationAndDisplay();
+    });
 }
 
 globalPlayPauseButton.addEventListener('click', () => {
