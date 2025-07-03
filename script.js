@@ -302,6 +302,7 @@ function toggleSingleNote(row, col) {
 
 let isPlaying = false;
 let currentColumn = 0;
+let playbackStartBpm;
 let nextNoteTime = 0.0;
 const lookahead = 25.0; // How often we wake up to schedule notes (in ms)
 const scheduleAheadTime = 0.1; // How far ahead to schedule audio (in s)
@@ -428,43 +429,9 @@ function updateGridDisplay() {
 }
 
 function nextNote() {
-    const bpm = parseFloat(bpmInput.value);
-    const secondsPerBeat = 60.0 / bpm;
+    const secondsPerBeat = 60.0 / parseFloat(bpmInput.value);
     nextNoteTime += secondsPerBeat;
-
     currentColumn++;
-
-    // Calculate the current time based on currentColumn
-    const currentTimeInSequence = currentColumn * secondsPerBeat;
-
-    if (loopCheckbox.checked) {
-        // If looping, and we've passed the total duration of the actual notes
-        if (totalSequenceDuration > 0 && currentTimeInSequence >= totalSequenceDuration) {
-            currentColumn = 0;
-            currentPlaybackTime = 0; // Reset playback time on loop
-            playbackStartTime = audioContext.currentTime; // Reset playback start time
-            globalProgressBar.value = 0; // Reset progress bar on loop
-        } else if (totalSequenceDuration === 0 && currentColumn >= numCols) {
-            // If no notes (totalSequenceDuration is 0), loop the full grid length
-            currentColumn = 0;
-            currentPlaybackTime = 0;
-            playbackStartTime = audioContext.currentTime;
-            globalProgressBar.value = 0;
-        }
-    }
-
-    else {
-        // If not looping and reached the end of the grid, stop playback
-        if (currentColumn === numCols) {
-            const stopDelay = (60.0 / bpm) * 1000; // Delay in ms for one beat
-            endOfSequenceTimerId = setTimeout(() => {
-                stopPlayback(false); // Don't clear the grid, just stop
-            }, stopDelay);
-            return; // Exit without resetting column
-        }
-    }
-
-    console.log(`nextNote: currentColumn is now ${currentColumn}`);
 }
 
 function playSFX(sfx, time, duration, frequency, audioCtx) {
@@ -531,6 +498,18 @@ function scheduleNote(beatNumber, time) {
 
 function scheduler() {
     while (nextNoteTime < audioContext.currentTime + scheduleAheadTime) {
+        // If looping is enabled and we've reached the end of the sequence, reset
+        if (loopCheckbox.checked && currentColumn * (60.0 / parseFloat(bpmInput.value)) >= totalSequenceDuration) {
+            currentColumn = 0;
+            nextNoteTime = audioContext.currentTime; // Reset nextNoteTime to current audio context time
+            // Stop any currently playing notes to prevent lingering sounds
+            playingNodes.forEach(node => {
+                if (node.oscillator) node.oscillator.stop(0);
+                if (node.gain) node.gain.disconnect();
+            });
+            playingNodes = [];
+        }
+
         scheduleNote(currentColumn, nextNoteTime);
         nextNote();
     }
@@ -540,78 +519,97 @@ function scheduler() {
     }
 }
 
+let animationFrameId = null;
+
 function draw() {
-    if (!isPlaying) return;
-
-    // Update current playback time and progress bar more frequently for smoother animation
-    currentPlaybackTime = audioContext.currentTime - playbackStartTime;
-    globalProgressBar.value = currentPlaybackTime;
-
-    const secondsPerBeat = 60.0 / parseFloat(bpmInput.value);
-    let highlightCol = Math.floor(currentPlaybackTime / secondsPerBeat);
-
-    // Cap highlightCol to prevent it from exceeding the grid width
-    highlightCol = Math.min(highlightCol, numCols - 1);
-
-    // Update the displayed timestamp based on the highlighted column's time
-    globalTimestamp.textContent = `${formatTime(currentPlaybackTime)}/${formatTime(totalSequenceDuration)}`;
-
-    // Only update column highlight if it has changed
-    if (highlightCol !== lastHighlightedColumn) {
-        highlightColumn(highlightCol, 1);
-        lastHighlightedColumn = highlightCol;
+    if (!isPlaying) {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        return;
     }
 
-    requestAnimationFrame(draw);
+    currentPlaybackTime = audioContext.currentTime - playbackStartTime;
+
+    // The loop handling is now primarily in the scheduler function
+    // This ensures the UI updates smoothly even if the audio loop resets
+    if (currentPlaybackTime >= totalSequenceDuration && loopCheckbox.checked) {
+        // If looping, reset currentPlaybackTime for smooth progress bar animation
+        currentPlaybackTime = currentPlaybackTime % totalSequenceDuration;
+    } else if (currentPlaybackTime >= totalSequenceDuration && !loopCheckbox.checked) {
+        // If not looping and reached end, stop playback
+        stopPlayback();
+        return;
+    }
+
+    globalProgressBar.value = currentPlaybackTime;
+    globalTimestamp.textContent = `${formatTime(currentPlaybackTime)}/${formatTime(totalSequenceDuration)}`;
+
+    const secondsPerBeat = 60.0 / parseFloat(bpmInput.value);
+    const continuousCol = currentPlaybackTime / secondsPerBeat;
+
+    highlightColumn(continuousCol);
+
+    animationFrameId = requestAnimationFrame(draw);
 }
 
-function startPlayback() {
-    if (isPlaying) return; // If already playing, do nothing
-    isPlaying = true; // Set to true immediately
-    console.log("startPlayback: Playback initiated. isPlaying:", isPlaying);
-    clearTimeout(endOfSequenceTimerId);
+function startPlayback(startColumn = 0) {
+    if (isPlaying) return;
+    isPlaying = true;
 
-    // THIS IS THE FIX: Recalculate total duration before starting playback
     updateTotalDurationAndDisplay();
+    if (totalSequenceDuration === 0) {
+        console.log("No notes to play.");
+        isPlaying = false;
+        return;
+    }
 
-    globalProgressBar.max = totalSequenceDuration;
-    globalProgressBar.value = 0;
-    globalTimestamp.textContent = `0:00/${formatTime(totalSequenceDuration)}`;
-
-    currentColumn = 0;
-    nextNoteTime = audioContext.currentTime;
-    playbackStartTime = audioContext.currentTime;
+    playbackStartBpm = parseFloat(bpmInput.value);
+    currentColumn = startColumn; // Use the provided startColumn
+    const secondsPerBeat = 60.0 / parseFloat(bpmInput.value);
+    playbackStartTime = audioContext.currentTime - (currentColumn * secondsPerBeat); // Adjust playbackStartTime
+    nextNoteTime = audioContext.currentTime; // This should be relative to audioContext.currentTime for scheduling
     playingNodes = [];
+
     scheduler();
-    requestAnimationFrame(draw);
-    console.log("startPlayback: Setting button text to 'Stop'");
+    if (animationFrameId === null) {
+        animationFrameId = requestAnimationFrame(draw);
+    }
+
     globalPlayPauseButton.textContent = "Stop";
 }
 
 function stopPlayback(clearGridFlag = false) {
-    if (!isPlaying && !clearGridFlag) return; // If not playing and not forcing clear, do nothing
-    isPlaying = false; // Set to false immediately
-    console.log("stopPlayback: Playback stopped. isPlaying:", isPlaying);
+    if (!isPlaying && !clearGridFlag) return;
+    isPlaying = false;
+
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
+
     clearTimeout(schedulerTimerId);
     clearTimeout(endOfSequenceTimerId);
+
     playingNodes.forEach(node => {
         if (node.oscillator) node.oscillator.stop(0);
-        if (node.gain) node.gain.disconnect(); // Disconnect gain node
+        if (node.gain) node.gain.disconnect();
     });
     playingNodes = [];
+
     columnHighlight.classList.remove('block');
     columnHighlight.classList.add('hidden');
 
-    // Clear all highlighted cells
     const highlightedCells = document.querySelectorAll('.grid-cell.highlighted');
     highlightedCells.forEach(cell => cell.classList.remove('highlighted'));
 
     if (clearGridFlag) {
-        layers[activeLayerIndex].grid = Array(numRows).fill(null).map(() => []); // Clear the active layer's grid data
-        renderActiveLayer(); // Re-render the main grid
-        renderLayerList(); // Re-render the layer list
+        layers[activeLayerIndex].grid = Array(numRows).fill(null).map(() => []);
+        renderActiveLayer();
+        renderLayerList();
     }
-    console.log("stopPlayback: Setting button text to 'Play'");
+
     globalPlayPauseButton.textContent = "Play";
     globalProgressBar.value = 0;
     currentPlaybackTime = 0;
@@ -783,13 +781,14 @@ globalPlayPauseButton.addEventListener('click', () => {
     console.log("Global Play/Pause button clicked. isPlaying after:", isPlaying);
 });
 
-function highlightColumn(col, span = 1) {
+function highlightColumn(col) {
     if (effectiveColumnWidth === 0) return;
 
     const gridWrapperScrollLeft = Math.round(gridContainer.parentElement.scrollLeft);
 
-    // Round all components to avoid sub-pixel issues
-    const highlightLeft = Math.round(gridContainerOffsetLeft) + Math.round(col * effectiveColumnWidth) - gridWrapperScrollLeft;
+    // Highlight the current whole column
+    const currentWholeColumn = Math.floor(col);
+    const highlightLeft = Math.round(gridContainerOffsetLeft) + Math.round(currentWholeColumn * effectiveColumnWidth) - gridWrapperScrollLeft;
 
     columnHighlight.style.width = `${Math.round(columnHighlightWidth)}px`;
     columnHighlight.style.left = `${highlightLeft}px`;
@@ -799,7 +798,7 @@ function highlightColumn(col, span = 1) {
     columnHighlight.classList.add('block');
 
     // Scroll the grid-wrapper to the current column
-    gridContainer.parentElement.scrollLeft = Math.round(col * effectiveColumnWidth);
+    gridContainer.parentElement.scrollLeft = Math.round(currentWholeColumn * effectiveColumnWidth);
 }
 
 function renderBusMixer() {
@@ -908,6 +907,9 @@ instrumentSelect.addEventListener('change', () => {
 bpmInput.addEventListener('input', () => {
     bpmValueSpan.textContent = bpmInput.value;
     updateTotalDurationAndDisplay();
+    if (isPlaying) {
+        restartPlaybackForBpmChange();
+    }
 });
 
 bpmValueSpan.addEventListener('click', () => {
@@ -933,22 +935,24 @@ function updateBpmFromTextInput() {
         newBpm = 240;
     }
 
-    const oldBpm = parseFloat(bpmInput.value);
-    const oldSecondsPerBeat = 60.0 / oldBpm;
-    const currentColumnAtChange = Math.floor(currentPlaybackTime / oldSecondsPerBeat);
-
     bpmInput.value = newBpm;
     bpmValueSpan.textContent = newBpm;
     updateTotalDurationAndDisplay();
 
-    // If playing, adjust playbackStartTime to keep the highlighter at its current column
     if (isPlaying) {
-        const newSecondsPerBeat = 60.0 / newBpm;
-        playbackStartTime = audioContext.currentTime - (currentColumnAtChange * newSecondsPerBeat);
+        restartPlaybackForBpmChange();
     }
 
     bpmTextInput.classList.add('hidden');
     bpmValueSpan.classList.remove('hidden');
+}
+
+function restartPlaybackForBpmChange() {
+    const oldSecondsPerBeat = 60.0 / playbackStartBpm;
+    const currentColumnAtChange = Math.floor(currentPlaybackTime / oldSecondsPerBeat);
+
+    stopPlayback();
+    startPlayback(currentColumnAtChange);
 }
 
 bpmTextInput.addEventListener('blur', updateBpmFromTextInput);
