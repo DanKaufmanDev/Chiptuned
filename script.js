@@ -571,10 +571,8 @@ function startPlayback() {
     console.log("startPlayback: Playback initiated. isPlaying:", isPlaying);
     clearTimeout(endOfSequenceTimerId);
 
-    // Calculate total sequence duration
-    const bpm = parseFloat(bpmInput.value);
-    const noteDurationPerColumn = 60 / bpm;
-    totalSequenceDuration = numCols * noteDurationPerColumn;
+    // THIS IS THE FIX: Recalculate total duration before starting playback
+    updateTotalDurationAndDisplay();
 
     globalProgressBar.max = totalSequenceDuration;
     globalProgressBar.value = 0;
@@ -819,9 +817,14 @@ function renderBusMixer() {
     busMixerContainer.appendChild(masterBusDiv);
 
     const masterVolumeSlider = document.getElementById('master-volume-slider');
+    const masterLabel = masterBusDiv.querySelector('.bus-label');
     masterVolumeSlider.value = linearToLog(masterGainNode.gain.value);
     masterVolumeSlider.addEventListener('input', (e) => {
         masterGainNode.gain.value = logToLinear(e.target.value);
+        masterLabel.textContent = Math.round(e.target.value);
+    });
+    masterVolumeSlider.addEventListener('change', (e) => {
+        masterLabel.textContent = 'Master';
     });
 
     // Track Buses
@@ -840,11 +843,13 @@ function renderBusMixer() {
         busMixerContainer.appendChild(trackBusDiv);
 
         const trackVolumeSlider = document.getElementById(`track-volume-slider-${layer.id}`);
+        const trackLabel = trackBusDiv.querySelector('.bus-label');
         trackVolumeSlider.value = linearToLog(layer.gainNode.gain.value);
         trackVolumeSlider.addEventListener('input', (e) => {
             const newGain = logToLinear(e.target.value);
             layer.gainValue = newGain; // Store the "true" volume
             layer.gainNode.gain.value = newGain; // Apply it to the sound
+            trackLabel.textContent = Math.round(e.target.value);
 
             // If the new gain is 0, mute the track. Otherwise, unmute it.
             const shouldBeMuted = newGain === 0;
@@ -852,6 +857,9 @@ function renderBusMixer() {
                 layer.isMuted = shouldBeMuted;
                 renderLayerList(); // Update the mute button in the layer list
             }
+        });
+        trackVolumeSlider.addEventListener('change', (e) => {
+            trackLabel.textContent = layer.name;
         });
     });
 }
@@ -1056,7 +1064,6 @@ document.addEventListener('DOMContentLoaded', () => {
     createGrid();
     addLayer(); // Create initial layer
     bpmValueSpan.textContent = bpmInput.value;
-    adjustLayout();
     updateTotalDurationAndDisplay();
     renderBusMixer(); // Render the bus mixer on load
 
@@ -1253,25 +1260,51 @@ saveMp3Button.addEventListener('click', async () => {
         activeSoundType = sfxSelect.value;
     } else if (instrumentSelect.value !== 'default') {
         activeSoundType = instrumentSelect.value;
-    }
-
-    else {
+    } else {
         activeSoundType = waveformSelect.value;
     }
 
     const fileName = `chiptuned_${bpm}BPM_${activeSoundType}.mp3`;
 
-    const noteDurationPerColumn = 60 / bpm; // Duration of one column in seconds
-    const totalDuration = numCols * noteDurationPerColumn;
+    const noteDurationPerColumn = 60 / bpm;
+
+    // Calculate the actual duration based on the last note
+    let maxColWithNote = -1;
+    layers.forEach(layer => {
+        layer.grid.forEach(row => {
+            row.forEach(note => {
+                if (note.end > maxColWithNote) {
+                    maxColWithNote = note.end;
+                }
+            });
+        });
+    });
+
+    const totalDuration = (maxColWithNote + 1) * noteDurationPerColumn;
+
+    if (totalDuration <= 0) {
+        alert("Cannot save an empty track. Please add some notes first.");
+        return;
+    }
 
     const offlineAudioContext = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
         2, // Number of channels (stereo)
-        audioContext.sampleRate * totalDuration, // Length of the rendering in samples
+        Math.ceil(audioContext.sampleRate * totalDuration), // Use Math.ceil for safety
         audioContext.sampleRate // Sample rate
     );
 
+    // Create an offline master gain node that mirrors the main one
+    const offlineMasterGain = offlineAudioContext.createGain();
+    offlineMasterGain.gain.value = masterGainNode.gain.value;
+    offlineMasterGain.connect(offlineAudioContext.destination);
+
     layers.forEach(layer => {
-        if (layer.isMuted) return; // Skip muted layers
+        // We don't need to check for isMuted here because the gainNode's value will be 0 if muted.
+        
+        // Create an offline gain node for this layer that mirrors the main one
+        const offlineLayerGain = offlineAudioContext.createGain();
+        offlineLayerGain.gain.value = layer.gainNode.gain.value; // This will be 0 if muted
+        offlineLayerGain.connect(offlineMasterGain);
 
         const layerFrequencies = [];
         for (let i = 0; i < numRows; i++) {
@@ -1284,26 +1317,13 @@ saveMp3Button.addEventListener('click', async () => {
                 const noteDuration = (note.end - note.start + 1) * noteDurationPerColumn;
                 const noteFrequency = layerFrequencies[i];
 
+                // Use the existing play functions, passing the offline context and the layer's offline gain node
                 if (layer.sfx) {
-                    playSFX(layer.sfx, noteStartTime, noteDuration, noteFrequency, offlineAudioContext);
+                    playSFX(layer.sfx, noteStartTime, noteDuration, noteFrequency, offlineAudioContext, offlineLayerGain);
                 } else if (layer.instrument !== 'default') {
-                    playInstrument(layer.instrument, noteFrequency, noteStartTime, noteDuration, offlineAudioContext);
+                    playInstrument(layer.instrument, noteFrequency, noteStartTime, noteDuration, offlineAudioContext, offlineLayerGain);
                 } else {
-                    // Default waveform sound
-                    const oscillator = offlineAudioContext.createOscillator();
-                    const gainNode = offlineAudioContext.createGain();
-
-                    oscillator.type = layer.waveform;
-                    oscillator.frequency.setValueAtTime(noteFrequency, noteStartTime);
-
-                    gainNode.gain.setValueAtTime(0.05, noteStartTime);
-                    gainNode.gain.exponentialRampToValueAtTime(0.0001, noteStartTime + noteDuration);
-
-                    oscillator.connect(gainNode);
-                    gainNode.connect(offlineAudioContext.destination);
-
-                    oscillator.start(noteStartTime);
-                    oscillator.stop(noteStartTime + noteDuration);
+                    playSound(layer.waveform, noteFrequency, noteStartTime, noteDuration, offlineAudioContext, offlineLayerGain);
                 }
             });
         }
@@ -1386,23 +1406,3 @@ function fallbackSaveMp3(blob, fileName) {
     URL.revokeObjectURL(url);
 }
 
-function adjustLayout() {
-    const mainAppWindow = document.getElementById('main-app-window');
-    const layerContainer = document.getElementById('layer-container');
-    const topWindow = document.getElementById('top-window');
-    const bottomWindow = document.getElementById('bottom-window');
-
-    if (mainAppWindow && layerContainer) {
-        const mainHeight = mainAppWindow.offsetHeight;
-        layerContainer.style.height = `${mainHeight}px`;
-    }
-
-    if (mainAppWindow && topWindow && bottomWindow) {
-        const newWidth = mainAppWindow.offsetWidth;
-        topWindow.style.width = `${newWidth}px`;
-        bottomWindow.style.width = `${newWidth}px`;
-    }
-}
-
-window.addEventListener('resize', adjustLayout);
-document.addEventListener('DOMContentLoaded', adjustLayout);
