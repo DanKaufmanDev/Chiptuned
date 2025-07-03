@@ -6,7 +6,7 @@
     --border-color-dark: #000000;
     --button-bg: #c0c0c0;
     --button-text-color: #ffffff;
-    --active-cell-bg: #2b00ff;
+    --active-cell-bg: #008080;
 }
 
 body {
@@ -199,6 +199,26 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex-grow: 1;
+    min-width: 0;
+    width: 0;
+}
+
+.layer-name-input {
+    background-color: #333;
+    color: #fff;
+    border: none;
+    border-radius: 0;
+    padding: 0 2px; /* Add a little horizontal padding for cursor */
+    margin: 0;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    font-weight: bold;
+    outline: 1px solid var(--border-color-light);
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
 }
 
 #column-highlight {
@@ -226,15 +246,24 @@ body {
     border-right-color: var(--border-color-light);
     border-bottom-color: var(--border-color-light);
     height: 100px;
-    min-width: 70px;
+    width: 119px; /* Fixed width to prevent stretching */
     flex-shrink: 0;
     gap: 0.25rem; /* Add a small gap */
+}
+
+.bus-container.active-bus {
+    background-color: #a0a0a0;
 }
 
 .bus-label {
     color: white;
     text-shadow: 1px 1px 0px var(--border-color-dark);
     font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    text-align: center;
 }
 
 .retro-slider-container {

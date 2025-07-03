@@ -88,7 +88,7 @@ function updateTotalDurationAndDisplay() {
 
 function createNewLayer(name) {
     const gainNode = audioContext.createGain();
-    gainNode.gain.value = 0.7; // Default gain for new tracks
+    gainNode.gain.value = 1.0; // Default gain for new tracks
     gainNode.connect(masterGainNode); // Connect track bus to master bus
 
     return {
@@ -101,7 +101,7 @@ function createNewLayer(name) {
         octave: 4,
         isMuted: false,
         gainNode: gainNode, // Store the gain node for this layer
-        gainValue: 0.7 // Store the gain value for saving/loading
+        gainValue: 1.0 // Store the gain value for saving/loading
     };
 }
 
@@ -141,19 +141,13 @@ function renderLayerList() {
 
         const layerNameSpan = document.createElement('span');
         layerNameSpan.textContent = layer.name;
-        layerNameSpan.classList.add('font-bold', 'cursor-pointer', 'flex-grow', 'layer-name');
+        layerNameSpan.classList.add('font-bold', 'cursor-pointer', 'layer-name');
         layerNameContainer.appendChild(layerNameSpan);
 
         const layerNameInput = document.createElement('input');
         layerNameInput.type = 'text';
         layerNameInput.value = layer.name;
-        layerNameInput.classList.add('hidden', 'bg-gray-700', 'text-white', 'text-sm', 'font-bold', 'rounded', 'px-1');
-        layerNameInput.style.position = 'absolute';
-        layerNameInput.style.top = '0';
-        layerNameInput.style.left = '0';
-        layerNameInput.style.width = 'calc(100% - 24px)'; // Account for delete button width + margin
-        layerNameInput.style.height = '100%';
-        layerNameInput.style.zIndex = '2'; // Ensure input is above span when visible
+        layerNameInput.classList.add('hidden', 'layer-name', 'layer-name-input', 'font-bold');
         layerNameContainer.appendChild(layerNameInput);
 
         layerNameSpan.addEventListener('click', () => {
@@ -190,8 +184,17 @@ function renderLayerList() {
         }
         muteBtn.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent the layer from being selected when muting
-            layers[index].isMuted = !layers[index].isMuted;
+            const layer = layers[index];
+            layer.isMuted = !layer.isMuted;
+
+            if (layer.isMuted) {
+                layer.gainNode.gain.value = 0;
+            } else {
+                layer.gainNode.gain.value = layer.gainValue;
+            }
+
             renderLayerList(); // Re-render to update mute button state
+            renderBusMixer(); // Re-render the bus to update the slider
         });
         layerNameContainer.appendChild(muteBtn);
 
@@ -260,6 +263,7 @@ function switchLayer(index, force = false) {
     activeLayerIndex = index;
     renderActiveLayer();
     renderLayerList();
+    renderBusMixer(); // Add this line to update the mixer
 }
 
 function renderActiveLayer() {
@@ -447,7 +451,9 @@ function nextNote() {
             playbackStartTime = audioContext.currentTime;
             globalProgressBar.value = 0;
         }
-    } else {
+    }
+
+    else {
         // If not looping and reached the end of the grid, stop playback
         if (currentColumn === numCols) {
             const stopDelay = (60.0 / bpm) * 1000; // Delay in ms for one beat
@@ -507,7 +513,7 @@ function scheduleNote(beatNumber, time) {
 
                 const selectedSfx = layer.sfx;
                 if (selectedSfx) {
-                    playSFX(selectedSfx, time, noteDurationInSeconds, noteFrequency); // Pass frequency to SFX
+                    playSFX(selectedSfx, time, noteDurationInSeconds, noteFrequency);
                 } else {
                     const selectedInstrument = layer.instrument;
                     if (selectedInstrument === 'default') {
@@ -822,9 +828,12 @@ function renderBusMixer() {
     layers.forEach((layer, index) => {
         const trackBusDiv = document.createElement('div');
         trackBusDiv.classList.add('bus-container');
+        if (index === activeLayerIndex) {
+            trackBusDiv.classList.add('active-bus');
+        }
         trackBusDiv.innerHTML = `
             <div class="retro-slider-container">
-                <input type="range" class="retro-slider" id="track-volume-slider-${layer.id}" min="0" max="100" value="70">
+                <input type="range" class="retro-slider" id="track-volume-slider-${layer.id}" min="0" max="100" value="100">
             </div>
             <label for="track-volume-slider-${layer.id}" class="bus-label">${layer.name}</label>
         `;
@@ -833,8 +842,16 @@ function renderBusMixer() {
         const trackVolumeSlider = document.getElementById(`track-volume-slider-${layer.id}`);
         trackVolumeSlider.value = linearToLog(layer.gainNode.gain.value);
         trackVolumeSlider.addEventListener('input', (e) => {
-            layer.gainNode.gain.value = logToLinear(e.target.value);
-            layer.gainValue = layer.gainNode.gain.value; // Update stored gain value
+            const newGain = logToLinear(e.target.value);
+            layer.gainValue = newGain; // Store the "true" volume
+            layer.gainNode.gain.value = newGain; // Apply it to the sound
+
+            // If the new gain is 0, mute the track. Otherwise, unmute it.
+            const shouldBeMuted = newGain === 0;
+            if (layer.isMuted !== shouldBeMuted) {
+                layer.isMuted = shouldBeMuted;
+                renderLayerList(); // Update the mute button in the layer list
+            }
         });
     });
 }
@@ -1079,6 +1096,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function saveProject() {
     const projectData = {
         bpm: bpmInput.value,
+        loop: loopCheckbox.checked,
         masterGain: masterGainNode.gain.value,
         layers: layers.map(layer => ({
             id: layer.id,
@@ -1177,6 +1195,14 @@ async function loadProject(data) {
             bpmInput.value = loadedData.bpm;
             bpmValueSpan.textContent = loadedData.bpm;
         }
+
+        // Load loop state
+        if (loadedData.loop) {
+            loopCheckbox.checked = true;
+        } else {
+            loopCheckbox.checked = false;
+        }
+
         updateTotalDurationAndDisplay();
 
         updateGridDisplay(); // Update the visual grid based on loaded data
@@ -1227,7 +1253,9 @@ saveMp3Button.addEventListener('click', async () => {
         activeSoundType = sfxSelect.value;
     } else if (instrumentSelect.value !== 'default') {
         activeSoundType = instrumentSelect.value;
-    } else {
+    }
+
+    else {
         activeSoundType = waveformSelect.value;
     }
 
@@ -1332,7 +1360,7 @@ saveMp3Button.addEventListener('click', async () => {
                 await writable.write(blob);
                 await writable.close();
             } catch (err) {
-                if (err.name !== 'AbortError') { // Ignore user aborting the dialog
+                if (err.name !== 'AbortError') {
                     console.error('Error saving MP3 using File System Access API:', err);
                     fallbackSaveMp3(blob, fileName);
                 }
