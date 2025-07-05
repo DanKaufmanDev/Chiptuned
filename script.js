@@ -403,6 +403,7 @@ function toggleSingleNote(row, col) {
         updateGridDisplay();
         renderLayerList();
         updateTotalDurationAndDisplay();
+        saveState();
     });
 }
 
@@ -415,6 +416,7 @@ function eraseNote(row, col) {
             updateGridDisplay();
             renderLayerList();
             updateTotalDurationAndDisplay();
+            saveState();
         });
     }
 }
@@ -579,7 +581,7 @@ function updateGridDisplay(displayGrid = grid) {
         for (let j = 0; j < numCols; j++) {
             const cell = document.querySelector(`[data-row='${i}'][data-col='${j}']`);
             if (cell) {
-                cell.classList.remove('active');
+                cell.classList.remove('active', 'erase-hover');
                 cell.style.gridColumn = '';
                 cell.style.display = 'block';
             }
@@ -1064,6 +1066,7 @@ function handleMouseUp() {
         updateGridDisplay();
         renderLayerList();
         updateTotalDurationAndDisplay();
+        saveState();
     });
 }
 
@@ -1255,6 +1258,7 @@ function handleMoveMouseUp(e) {
         updateGridDisplay();
         renderLayerList();
         updateTotalDurationAndDisplay();
+        saveState();
     });
 }
 
@@ -1440,6 +1444,7 @@ clearGridButton.addEventListener('click', () => {
     columnHighlight.classList.add('hidden');
     currentPlaybackTime = 0;
     updateTotalDurationAndDisplay();
+    saveState();
 });
 
 randomGridButton.addEventListener('click', () => {
@@ -1506,6 +1511,7 @@ randomGridButton.addEventListener('click', () => {
     setTimeout(() => {
         renderActiveLayer();
         renderLayerList();
+        saveState();
     }, 0);
 
     // --- 4. Set random BPM ---
@@ -1828,9 +1834,66 @@ function fallbackSaveMp3(blob, fileName) {
     URL.revokeObjectURL(url);
 }
 
+const undoButton = document.getElementById('tool-undo');
+const redoButton = document.getElementById('tool-redo');
+
+let history = [];
+let historyIndex = -1;
+
+function saveState() {
+    const state = {
+        layers: JSON.parse(JSON.stringify(layers)),
+        activeLayerIndex: activeLayerIndex
+    };
+
+    history.splice(historyIndex + 1);
+    history.push(state);
+    historyIndex++;
+    updateUndoRedoButtons();
+}
+
+function undo() {
+    if (historyIndex > 0) {
+        historyIndex--;
+        restoreState(history[historyIndex]);
+    }
+}
+
+function redo() {
+    if (historyIndex < history.length - 1) {
+        historyIndex++;
+        restoreState(history[historyIndex]);
+    }
+}
+
+function restoreState(state) {
+    layers = JSON.parse(JSON.stringify(state.layers));
+    activeLayerIndex = state.activeLayerIndex;
+
+    // Re-create gain nodes after loading the state
+    layers.forEach(layer => {
+        const newGainNode = audioContext.createGain();
+        newGainNode.connect(masterGainNode);
+        layer.gainNode = newGainNode;
+        layer.gainNode.gain.value = layer.gainValue;
+    });
+
+    renderActiveLayer();
+    renderLayerList();
+    renderBusMixer();
+    renderSoundSelectionButtons();
+    updateUndoRedoButtons();
+}
+
+function updateUndoRedoButtons() {
+    undoButton.disabled = historyIndex <= 0;
+    redoButton.disabled = historyIndex >= history.length - 1;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     createGrid();
     addLayer(); // Create initial layer
+    saveState(); // Save initial state
     bpmValueSpan.textContent = bpmInput.value;
     updateTotalDurationAndDisplay();
     renderBusMixer(); // Render the bus mixer on load
@@ -1845,7 +1908,14 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn("lamejs is not defined. 'Save as MP3' button will remain disabled.");
     }
 
-    addLayerButton.addEventListener('click', addLayer);
+    addLayerButton.addEventListener('click', () => {
+        addLayer();
+        saveState();
+    });
+
+    undoButton.addEventListener('click', undo);
+    redoButton.addEventListener('click', redo);
+
     saveProjectButton.addEventListener('click', saveProject);
     loadProjectButton.addEventListener('click', () => {
         const input = document.createElement('input');
@@ -1860,6 +1930,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const loadedData = JSON.parse(event.target.result);
                     loadProject(loadedData);
+                    saveState(); // Save the loaded state
                 } catch (error) {
                     console.error('Error loading project:', error);
                     alert('Could not load project file. It may be corrupt.');
@@ -1932,24 +2003,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const key = e.key.toLowerCase();
         let newTool = null;
 
-        switch (key) {
-            case 'q':
-                newTool = 'draw';
-                break;
-            case 'w':
-                newTool = 'erase';
-                break;
-            case 'e':
-                newTool = 'select';
-                break;
-            case 'r':
-                newTool = 'move';
-                break;
-        }
+        if (e.ctrlKey || e.metaKey) {
+            if (e.shiftKey && key === 'z') {
+                redo();
+            } else if (key === 'z') {
+                undo();
+            }
+        } else {
+            switch (key) {
+                case 'q':
+                    newTool = 'draw';
+                    break;
+                case 'w':
+                    newTool = 'erase';
+                    break;
+                case 'e':
+                    newTool = 'select';
+                    break;
+                case 'r':
+                    newTool = 'move';
+                    break;
+            }
 
-        if (newTool && activeTool !== newTool) {
-            activeTool = newTool;
-            renderToolButtons();
+            if (newTool && activeTool !== newTool) {
+                activeTool = newTool;
+                renderToolButtons();
+            }
         }
     });
 });

@@ -35,10 +35,14 @@
                 <div class="controls mb-8 flex flex-row items-start justify-center">
                     <!-- Tool Selection -->
                     <div id="sequencer-tools" class="flex flex-row gap-2">
+                        <button id="tool-undo" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Undo</button>
+                        <button id="tool-redo" class="px-4 py-2 text-white font-bold transition duration-300 retro-button mr-10">Redo</button>
                         <button class="px-4 py-2 text-white font-bold transition duration-300 retro-button" data-tool-id="draw" data-keybind="Q">Draw</button>
                         <button class="px-4 py-2 text-white font-bold transition duration-300 retro-button" data-tool-id="erase" data-keybind="W">Erase</button>
                         <button class="px-4 py-2 text-white font-bold transition duration-300 retro-button" data-tool-id="select" data-keybind="E">Select</button>
                         <button class="px-4 py-2 text-white font-bold transition duration-300 retro-button" data-tool-id="move" data-keybind="R">Move</button>
+                        <button id="tool-copy" class="px-4 py-2 text-white font-bold transition duration-300 retro-button ml-10">Copy</button>
+                        <button id="tool-paste" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Paste</button>
                     </div>
                 </div>
                 <!-- Sequencer Controls -->
