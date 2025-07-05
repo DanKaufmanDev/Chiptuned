@@ -207,6 +207,7 @@ body {
     overflow-y: auto;
     padding-right: 0.5rem; /* Add padding for scrollbar spacing */
     min-height: 0;
+    max-height: calc(100vh - 15rem);
 }
 
 /* Custom Scrollbar for Webkit browsers */
@@ -299,6 +300,22 @@ body {
     height: 100%;
     overflow-x: auto;
     min-width: 0;
+}
+
+/* Custom Scrollbar for Webkit browsers */
+#bus-mixer-container::-webkit-scrollbar {
+    height: 12px;
+}
+
+#bus-mixer-container::-webkit-scrollbar-track {
+    background: #4a5568; /* Match BPM slider background */
+    border-radius: 10px;
+}
+
+#bus-mixer-container::-webkit-scrollbar-thumb {
+    background-color: #ffffff; /* Match BPM slider thumb color */
+    border-radius: 10px;
+    border: 3px solid #4a5568; /* Creates padding around thumb */
 }
 
 .bus-container {
