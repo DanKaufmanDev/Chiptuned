@@ -69,6 +69,7 @@ let moveStartCol = -1;
 let moveStartRow = -1;
 let currentlySelectedNotes = [];
 let gridOffset = 0;
+let clipboard = null; // To store copied notes
 
 function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
@@ -1158,6 +1159,112 @@ function clearSelection() {
     selectionEndRow = -1;
 }
 
+function copySelectedNotes() {
+    if (currentlySelectedNotes.length === 0) {
+        console.log("No notes selected to copy.");
+        return;
+    }
+
+    // Find the top-left corner of the selection bounding box
+    let minRow = Infinity;
+    let minCol = Infinity;
+
+    currentlySelectedNotes.forEach(selected => {
+        if (selected.row < minRow) {
+            minRow = selected.row;
+        }
+        if (selected.noteRef.start < minCol) {
+            minCol = selected.noteRef.start;
+        }
+    });
+
+    clipboard = currentlySelectedNotes.map(selected => {
+        return {
+            // Store position relative to the top-left corner of the selection
+            relativeRow: selected.row - minRow,
+            relativeStart: selected.noteRef.start - minCol,
+            duration: selected.noteRef.end - selected.noteRef.start
+        };
+    });
+
+    console.log("Notes copied to clipboard:", clipboard);
+    // Optional: provide visual feedback to the user
+}
+
+function cutSelectedNotes() {
+    if (currentlySelectedNotes.length === 0) {
+        console.log("No notes selected to cut.");
+        return;
+    }
+
+    // First, copy the notes
+    copySelectedNotes();
+
+    // Now, delete the original notes
+    const notesToDelete = new Set(currentlySelectedNotes.map(item => item.noteRef));
+
+    for (let r = 0; r < grid.length; r++) {
+        grid[r] = grid[r].filter(note => !notesToDelete.has(note));
+    }
+
+    clearSelection();
+    requestAnimationFrame(() => {
+        updateGridDisplay();
+        renderLayerList();
+        updateTotalDurationAndDisplay();
+        saveState();
+    });
+    console.log("Notes cut to clipboard.");
+}
+
+function pasteNotes() {
+    if (!clipboard) {
+        console.log("Clipboard is empty.");
+        return;
+    }
+
+    // The paste will be anchored at the top-left of the current view
+    const pasteStartRow = 0; // This could be changed later if we want to paste relative to cursor
+    const pasteStartCol = gridOffset;
+
+    // Create a list of new notes to be added
+    const newNotes = clipboard.map(copiedNote => {
+        const newRow = pasteStartRow + copiedNote.relativeRow;
+        const newStart = pasteStartCol + copiedNote.relativeStart;
+        const newEnd = newStart + copiedNote.duration;
+        return { row: newRow, start: newStart, end: newEnd };
+    });
+
+    // --- Collision Detection and Removal ---
+    // Remove any existing notes that would be overlapped by the pasted notes.
+    newNotes.forEach(pastedNote => {
+        if (grid[pastedNote.row]) {
+            // Filter out notes that collide with the one being pasted
+            grid[pastedNote.row] = grid[pastedNote.row].filter(existingNote => {
+                const collision = existingNote.start <= pastedNote.end && existingNote.end >= pastedNote.start;
+                return !collision; // Keep the note if there is NO collision
+            });
+        }
+    });
+
+    // --- Add the new notes ---
+    newNotes.forEach(pastedNote => {
+        if (pastedNote.row >= 0 && pastedNote.row < numRows) {
+            grid[pastedNote.row].push({ start: pastedNote.start, end: pastedNote.end });
+        }
+    });
+
+
+    clearSelection();
+    requestAnimationFrame(() => {
+        updateGridDisplay();
+        renderLayerList();
+        updateTotalDurationAndDisplay();
+        saveState();
+    });
+    console.log("Notes pasted from clipboard.");
+}
+
 function handleMoveMouseMove(e) {
     if (!isDragging || activeTool !== 'move') return;
 
@@ -1915,6 +2022,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     undoButton.addEventListener('click', undo);
     redoButton.addEventListener('click', redo);
+
+    document.getElementById('tool-copy').addEventListener('click', copySelectedNotes);
+    document.getElementById('tool-cut').addEventListener('click', cutSelectedNotes);
+    document.getElementById('tool-paste').addEventListener('click', pasteNotes);
+
+    document.addEventListener('keydown', (e) => {
+        // Check if a text input is focused
+        const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+
+        if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+            if (isInputFocused) return; // Don't interfere with standard copy-paste in text fields
+            e.preventDefault();
+            copySelectedNotes();
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
+            if (isInputFocused) return; // Don't interfere with standard copy-paste in text fields
+            e.preventDefault();
+            cutSelectedNotes();
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+            if (isInputFocused) return; // Don't interfere with standard copy-paste in text fields
+            e.preventDefault();
+            pasteNotes();
+        }
+    });
 
     saveProjectButton.addEventListener('click', saveProject);
     loadProjectButton.addEventListener('click', () => {
