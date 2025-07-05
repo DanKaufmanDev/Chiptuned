@@ -20,6 +20,8 @@ const addLayerButton = document.getElementById('add-layer');
 const layerListContainer = document.getElementById('layer-list');
 const busMixerContainer = document.getElementById('bus-mixer-container');
 const soundsPanel = document.getElementById('sounds-panel');
+const barInput = document.getElementById('bar');
+const selectionRectangle = document.getElementById('selection-rectangle');
 
 const waveforms = ['square', 'sine', 'sawtooth', 'triangle'];
 const instruments = ['piano', 'organ', 'synth_lead', 'bass', 'flute', 'trumpet', 'strings'];
@@ -54,6 +56,16 @@ let currentProjectFileName = 'my_chiptuned_project.cht'; // New global variable 
 let totalSequenceDuration = 0; // Total duration of the sequence in seconds
 let playbackStartTime = 0; // AudioContext time when playback started
 let currentPlaybackTime = 0; // Current playback time in seconds
+
+let selectionStartCol = -1;
+let selectionStartRow = -1;
+let selectionEndCol = -1;
+let selectionEndRow = -1;
+
+let selectedNotesForMove = [];
+let moveStartCol = -1;
+let moveStartRow = -1;
+let currentlySelectedNotes = [];
 
 function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
@@ -373,13 +385,11 @@ function addLayer() {
 }
 
 function toggleSingleNote(row, col) {
+    if (activeTool !== 'draw') return;
     // Find if any note exists at the clicked column
     const existingNoteIndex = grid[row].findIndex(note => col >= note.start && col <= note.end);
 
-    if (existingNoteIndex !== -1) {
-        // A note exists here, remove it.
-        grid[row].splice(existingNoteIndex, 1);
-    } else {
+    if (existingNoteIndex === -1) {
         // No note exists here, add a new single-cell note.
         grid[row].push({ start: col, end: col });
     }
@@ -388,6 +398,19 @@ function toggleSingleNote(row, col) {
         renderLayerList();
         updateTotalDurationAndDisplay();
     });
+}
+
+function eraseNote(row, col) {
+    const existingNoteIndex = grid[row].findIndex(note => col >= note.start && col <= note.end);
+
+    if (existingNoteIndex !== -1) {
+        grid[row].splice(existingNoteIndex, 1);
+        requestAnimationFrame(() => {
+            updateGridDisplay();
+            renderLayerList();
+            updateTotalDurationAndDisplay();
+        });
+    }
 }
 
 let isPlaying = false;
@@ -404,6 +427,32 @@ let columnHighlightWidth = 0;
 let gridColumnGap = 0; // Make gridColumnGap a global variable
 let baseNoteFrequencyForSFX = 261.63; // Initialize with a default C4 frequency
 
+function updateGridForBarSystem() {
+    const barCount = parseInt(barInput.value, 10);
+    if (isNaN(barCount) || barCount <= 0) return;
+
+    for (let i = 0; i < numRows; i++) {
+        for (let j = 0; j < numCols; j++) {
+            const cell = document.querySelector(`[data-row='${i}'][data-col='${j}']`);
+            if (cell.classList.contains('active')) continue; // Skip active cells
+
+            const barIndex = Math.floor(j / barCount);
+            cell.classList.remove('bar-odd', 'bar-even', 'row-odd', 'row-even');
+
+            if ((i % 2) === 0) {
+                cell.classList.add('row-even');
+            } else {
+                cell.classList.add('row-odd');
+            }
+
+            if ((barIndex % 2) === 0) {
+                cell.classList.add('bar-even');
+            } else {
+                cell.classList.add('bar-odd');
+            }
+        }
+    }
+}
 
 function updateNotesAndFrequencies() {
     // console.log('updateNotesAndFrequencies called');
@@ -461,11 +510,13 @@ function createGrid() {
             cell.dataset.row = i;
             cell.dataset.col = j;
             cell.addEventListener('mousedown', (e) => handleMouseDown(e, i, j));
+            cell.addEventListener('mouseover', (e) => handleMouseOver(e, i, j));
+            cell.addEventListener('mouseout', (e) => handleMouseOut(e, i, j));
             gridContainer.appendChild(cell);
         }
     }
     // After creating cells, update their active state based on the grid data
-    requestAnimationFrame(updateGridDisplay);
+    requestAnimationFrame(() => updateGridDisplay());
 
     // Calculate column width and offset once
     const firstCell = gridContainer.children[0];
@@ -477,9 +528,38 @@ function createGrid() {
         gridContainerOffsetLeft = gridContainer.offsetLeft; // Get the actual offset of the grid container
         columnHighlightWidth = cellActualWidth; // Set the highlighter width to the cell width
     }
+    updateGridForBarSystem();
 }
 
-function updateGridDisplay() {
+function handleMouseOver(e, row, col) {
+    if (activeTool === 'erase') {
+        const note = grid[row].find(note => col >= note.start && col <= note.end);
+        if (note) {
+            for (let c = note.start; c <= note.end; c++) {
+                const cell = document.querySelector(`[data-row='${row}'][data-col='${c}']`);
+                if (cell) {
+                    cell.classList.add('erase-hover');
+                }
+            }
+        }
+    }
+}
+
+function handleMouseOut(e, row, col) {
+    if (activeTool === 'erase') {
+        const note = grid[row].find(note => col >= note.start && col <= note.end);
+        if (note) {
+            for (let c = note.start; c <= note.end; c++) {
+                const cell = document.querySelector(`[data-row='${row}'][data-col='${c}']`);
+                if (cell) {
+                    cell.classList.remove('erase-hover');
+                }
+            }
+        }
+    }
+}
+
+function updateGridDisplay(displayGrid = grid) {
     for (let i = 0; i < numRows; i++) {
         for (let j = 0; j < numCols; j++) {
             const cell = document.querySelector(`[data-row='${i}'][data-col='${j}']`);
@@ -493,7 +573,7 @@ function updateGridDisplay() {
             let noteStartingAtThisCell = null;
 
             // Check if this cell is covered by any note in the current row
-            for (const note of grid[i]) {
+            for (const note of displayGrid[i]) {
                 if (j >= note.start && j <= note.end) {
                     coveredByNote = true;
                     if (j === note.start) {
@@ -516,6 +596,7 @@ function updateGridDisplay() {
             // If not covered by any note, it remains display: 'block' (default)
         }
     }
+    updateGridForBarSystem();
 }
 
 function nextNote() {
@@ -524,15 +605,117 @@ function nextNote() {
     currentColumn++;
 }
 
-function playSFX(sfx, time, duration, frequency, audioCtx) {
-    // TODO: Implement SFX playback
+function playSFX(sfx, time, duration, audioCtx, destinationNode) {
+    // Implement SFX playback based on the sfx type
+    // This is a placeholder. Actual SFX implementation would involve
+    // loading audio files or generating specific waveforms/envelopes.
     console.log(`Playing SFX: ${sfx}`);
+
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    // Example SFX: Coin (short, high-pitched tone)
+    if (sfx === 'coin') {
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(880, time); // A5
+        gainNode.gain.setValueAtTime(0.5, time);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.1); // Quick decay
+    } else if (sfx === 'laser') {
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(500, time);
+        oscillator.frequency.exponentialRampToValueAtTime(50, time + 0.2);
+        gainNode.gain.setValueAtTime(0.4, time);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+    } else if (sfx === 'explosion') {
+        // Noise burst for explosion
+        const bufferSize = audioCtx.sampleRate * 0.5; // 0.5 seconds of noise
+        const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+        const noiseSource = audioCtx.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+        noiseSource.connect(gainNode);
+
+        gainNode.gain.setValueAtTime(0.6, time);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+        noiseSource.start(time);
+        noiseSource.stop(time + 0.5);
+        oscillator.disconnect(); // Disconnect default oscillator as we're using noise
+    }
+    // Add more SFX implementations here
+
+    oscillator.connect(gainNode);
+    gainNode.connect(destinationNode);
+
+    if (sfx !== 'explosion') { // Only start oscillator if not using noise for explosion
+        oscillator.start(time);
+        oscillator.stop(time + duration);
+    }
 }
 
 function playInstrument(instrument, frequency, time, duration, audioCtx, destinationNode) {
-    // TODO: Implement instrument playback
-    console.log(`Playing instrument: ${instrument}`);
-    return { oscillator: null, gainNode: null };
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.frequency.setValueAtTime(frequency, time);
+
+    // Basic ADSR envelope (Attack, Decay, Sustain, Release)
+    const attackTime = 0.01;
+    const decayTime = 0.1;
+    const sustainLevel = 0.7;
+    const releaseTime = 0.2;
+
+    gainNode.gain.setValueAtTime(0, time);
+    gainNode.gain.linearRampToValueAtTime(1, time + attackTime);
+    gainNode.gain.linearRampToValueAtTime(sustainLevel, time + attackTime + decayTime);
+    gainNode.gain.linearRampToValueAtTime(0, time + duration - releaseTime);
+    gainNode.gain.linearRampToValueAtTime(0, time + duration);
+
+
+    if (instrument === 'piano') {
+        oscillator.type = 'triangle'; // Approximation
+    } else if (instrument === 'organ') {
+        oscillator.type = 'sine'; // Approximation
+        // Add a second oscillator for a richer organ sound
+        const oscillator2 = audioCtx.createOscillator();
+        oscillator2.type = 'sine';
+        oscillator2.frequency.setValueAtTime(frequency * 2, time); // Octave higher
+        oscillator2.connect(gainNode);
+        oscillator2.start(time);
+        oscillator2.stop(time + duration);
+    } else if (instrument === 'synth_lead') {
+        oscillator.type = 'sawtooth';
+    } else if (instrument === 'bass') {
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(frequency / 2, time); // Lower octave for bass
+    } else if (instrument === 'flute') {
+        oscillator.type = 'sine'; // Pure tone
+    } else if (instrument === 'trumpet') {
+        oscillator.type = 'sawtooth'; // Brassy sound
+    } else if (instrument === 'strings') {
+        oscillator.type = 'sawtooth'; // Richer sound
+        // Add vibrato for strings
+        const vibrato = audioCtx.createOscillator();
+        vibrato.type = 'sine';
+        vibrato.frequency.setValueAtTime(5, time); // 5 Hz vibrato
+        const vibratoGain = audioCtx.createGain();
+        vibratoGain.gain.setValueAtTime(frequency * 0.02, time); // Small frequency deviation
+        vibrato.connect(vibratoGain);
+        vibratoGain.connect(oscillator.frequency);
+        vibrato.start(time);
+        vibrato.stop(time + duration);
+    }
+    // Add more instrument implementations here
+
+    oscillator.connect(gainNode);
+    gainNode.connect(destinationNode);
+
+    oscillator.start(time);
+    oscillator.stop(time + duration);
+
+    return { oscillator, gainNode };
 }
 
 function playSound(waveform, frequency, time, duration, audioCtx, destinationNode) {
@@ -570,7 +753,7 @@ function scheduleNote(beatNumber, time) {
 
                 const selectedSfx = layer.sfx;
                 if (selectedSfx) {
-                    playSFX(selectedSfx, time, noteDurationInSeconds, noteFrequency);
+                    playSFX(selectedSfx, time, noteDurationInSeconds, audioContext, layer.gainNode);
                 } else {
                     const selectedInstrument = layer.instrument;
                     if (selectedInstrument) { // Check if an instrument is selected
@@ -709,13 +892,65 @@ function stopPlayback(clearGridFlag = false) {
 function handleMouseDown(e, row, col) {
     if (e.button !== 0) return; // Only left click
 
-    dragStartCol = col;
-    dragStartRow = row;
-    isDragging = false; // Reset drag state
+    if (activeTool === 'draw') {
+        dragStartCol = col;
+        dragStartRow = row;
+        isDragging = false; // Reset drag state
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    } else if (activeTool === 'erase') {
+        eraseNote(row, col);
+    } else if (activeTool === 'select') {
+        clearSelection();
+        selectionStartCol = col;
+        selectionStartRow = row;
+        selectionEndCol = col;
+        selectionEndRow = row;
+        isDragging = true; // Indicate that a selection drag has started
+
+        document.addEventListener('mousemove', handleSelectionMouseMove);
+        document.addEventListener('mouseup', handleSelectionMouseUp);
+    } else if (activeTool === 'move') {
+        const noteUnderCursor = grid[row].find(note => col >= note.start && col <= note.end);
+
+        // If there's no note under the cursor, do nothing.
+        if (!noteUnderCursor) {
+            return;
+        }
+
+        const isClickOnSelection = currentlySelectedNotes.some(selected => selected.noteRef === noteUnderCursor && selected.row === row);
+
+        // Determine what to move.
+        if (currentlySelectedNotes.length > 0 && isClickOnSelection) {
+            // Scenario 1: A selection exists and the user clicked on a note within it.
+            // Move the entire selection.
+            selectedNotesForMove = currentlySelectedNotes.map(selected => ({
+                originalNote: { ...selected.noteRef },
+                originalRow: selected.row
+            }));
+        } else {
+            // Scenario 2: No selection exists, OR the user clicked a note outside the current selection.
+            // In both cases, we move only the single note that was clicked.
+            selectedNotesForMove = [{
+                originalNote: { ...noteUnderCursor },
+                originalRow: row
+            }];
+        }
+
+        // Now that we know what to move, clear the old selection state and visuals.
+        clearSelection();
+
+        // And start the move operation.
+        moveStartCol = col;
+        moveStartRow = row;
+        isDragging = true;
+
+        document.addEventListener('mousemove', handleMoveMouseMove);
+        document.addEventListener('mouseup', handleMoveMouseUp);
+    }
 }
+
 
 function handleMouseMove(e) {
     const targetCell = e.target.closest('.grid-cell');
@@ -764,7 +999,7 @@ function handleMouseMove(e) {
     currentNote.start = proposedStart;
     currentNote.end = proposedEnd;
 
-    requestAnimationFrame(updateGridDisplay);
+    requestAnimationFrame(() => updateGridDisplay());
 }
 
 function handleMouseUp() {
@@ -791,6 +1026,190 @@ function handleMouseUp() {
     anchorCol = -1;
 
     // Perform a final render to commit the changes to the display.
+    requestAnimationFrame(() => {
+        updateGridDisplay();
+        renderLayerList();
+        updateTotalDurationAndDisplay();
+    });
+}
+
+function handleSelectionMouseMove(e) {
+    const gridRect = gridContainer.getBoundingClientRect();
+    const mouseX = e.clientX - gridRect.left;
+    const mouseY = e.clientY - gridRect.top;
+
+    let currentCol = Math.floor(mouseX / effectiveColumnWidth);
+    let currentRow = Math.floor(mouseY / (gridContainer.offsetHeight / numRows));
+
+    currentCol = Math.max(0, Math.min(numCols - 1, currentCol));
+    currentRow = Math.max(0, Math.min(numRows - 1, currentRow));
+
+    selectionEndCol = currentCol;
+    selectionEndRow = currentRow;
+
+    drawSelectionRectangle();
+}
+
+function handleSelectionMouseUp() {
+    document.removeEventListener('mousemove', handleSelectionMouseMove);
+    document.removeEventListener('mouseup', handleSelectionMouseUp);
+
+    const startX = Math.min(selectionStartCol, selectionEndCol);
+    const endX = Math.max(selectionStartCol, selectionEndCol);
+    const startY = Math.min(selectionStartRow, selectionEndRow);
+    const endY = Math.max(selectionStartRow, selectionEndRow);
+
+    currentlySelectedNotes = [];
+    const processedNotes = new Set();
+
+    for (let r = startY; r <= endY; r++) {
+        if (grid[r]) {
+            for (const note of grid[r]) {
+                const colIsSelected = note.start <= endX && note.end >= startX;
+                if (colIsSelected) {
+                    if (!processedNotes.has(note)) {
+                        currentlySelectedNotes.push({ noteRef: note, row: r });
+                        processedNotes.add(note);
+                    }
+                }
+            }
+        }
+    }
+
+    console.log('Selected Notes:', currentlySelectedNotes);
+
+    selectionRectangle.style.width = '0';
+    selectionRectangle.style.height = '0';
+    selectionRectangle.classList.add('hidden');
+
+    isDragging = false;
+    requestAnimationFrame(() => updateGridDisplay());
+}
+
+function drawSelectionRectangle() {
+    const startX = Math.min(selectionStartCol, selectionEndCol);
+    const endX = Math.max(selectionStartCol, selectionEndCol);
+    const startY = Math.min(selectionStartRow, selectionEndRow);
+    const endY = Math.max(selectionStartRow, selectionEndRow);
+
+    const cellWidth = effectiveColumnWidth;
+    const cellHeight = gridContainer.offsetHeight / numRows;
+
+    const left = gridContainer.offsetLeft + (startX * cellWidth);
+    const top = startY * cellHeight;
+    const width = (endX - startX + 1) * cellWidth;
+    const height = (endY - startY + 1) * cellHeight;
+
+    selectionRectangle.style.left = `${left}px`;
+    selectionRectangle.style.top = `${top}px`;
+    selectionRectangle.style.width = `${width}px`;
+    selectionRectangle.style.height = `${height}px`;
+    selectionRectangle.classList.remove('hidden');
+}
+
+function clearSelection() {
+    currentlySelectedNotes = [];
+    updateGridDisplay(); // No longer async
+
+    selectionRectangle.classList.add('hidden');
+    selectionStartCol = -1;
+    selectionStartRow = -1;
+    selectionEndCol = -1;
+    selectionEndRow = -1;
+}
+
+function handleMoveMouseMove(e) {
+    if (!isDragging || activeTool !== 'move') return;
+
+    const gridRect = gridContainer.getBoundingClientRect();
+    const mouseX = e.clientX - gridRect.left;
+    const mouseY = e.clientY - gridRect.top;
+
+    let currentCol = Math.floor(mouseX / effectiveColumnWidth);
+    let currentRow = Math.floor(mouseY / (gridContainer.offsetHeight / numRows));
+
+    const offsetX = currentCol - moveStartCol;
+    const offsetY = currentRow - moveStartRow;
+
+    const tempGrid = Array(numRows).fill(null).map(() => []);
+    const isNoteInMoveList = (noteToTest, rowToTest) => {
+        return selectedNotesForMove.some(movingNote =>
+            movingNote.originalRow === rowToTest &&
+            movingNote.originalNote.start === noteToTest.start &&
+            movingNote.originalNote.end === noteToTest.end
+        );
+    };
+
+    for (let r = 0; r < numRows; r++) {
+        for (const note of grid[r]) {
+            if (!isNoteInMoveList(note, r)) {
+                tempGrid[r].push({ ...note });
+            }
+        }
+    }
+
+    selectedNotesForMove.forEach(noteData => {
+        const { originalNote, originalRow } = noteData;
+        const newRow = originalRow + offsetY;
+        const newStart = originalNote.start + offsetX;
+        const newEnd = originalNote.end + offsetX;
+
+        if (newRow >= 0 && newRow < numRows && newStart >= 0 && newEnd < numCols) {
+            tempGrid[newRow].push({ start: newStart, end: newEnd });
+        }
+    });
+
+    updateGridDisplay(tempGrid);
+}
+
+function handleMoveMouseUp(e) {
+    document.removeEventListener('mousemove', handleMoveMouseMove);
+    document.removeEventListener('mouseup', handleMoveMouseUp);
+
+    if (!isDragging || activeTool !== 'move') return;
+
+    const gridRect = gridContainer.getBoundingClientRect();
+    const mouseX = e.clientX - gridRect.left;
+    const mouseY = e.clientY - gridRect.top;
+
+    let currentCol = Math.floor(mouseX / effectiveColumnWidth);
+    let currentRow = Math.floor(mouseY / (gridContainer.offsetHeight / numRows));
+
+    const offsetX = currentCol - moveStartCol;
+    const offsetY = currentRow - moveStartRow;
+
+    const newGrid = Array(numRows).fill(null).map(() => []);
+    const movedNoteKeys = new Set(selectedNotesForMove.map(s => `${s.originalRow}-${s.originalNote.start}-${s.originalNote.end}`));
+
+    for (let r = 0; r < numRows; r++) {
+        for (const note of grid[r]) {
+            const key = `${r}-${note.start}-${note.end}`;
+            if (!movedNoteKeys.has(key)) {
+                newGrid[r].push({ ...note });
+            }
+        }
+    }
+
+    selectedNotesForMove.forEach(noteData => {
+        const { originalNote, originalRow } = noteData;
+        const newRow = originalRow + offsetY;
+        const newStart = originalNote.start + offsetX;
+        const newEnd = originalNote.end + offsetX;
+
+        if (newRow >= 0 && newRow < numRows && newStart >= 0 && newEnd < numCols) {
+            newGrid[newRow].push({ start: newStart, end: newEnd });
+        }
+    });
+
+    grid = newGrid;
+    layers[activeLayerIndex].grid = grid; // Persist the changes to the layer
+
+    clearSelection();
+    isDragging = false;
+    moveStartCol = -1;
+    moveStartRow = -1;
+    selectedNotesForMove = [];
+
     requestAnimationFrame(() => {
         updateGridDisplay();
         renderLayerList();
@@ -900,7 +1319,6 @@ function linearToLog(value) {
     // Gain (0-1) to slider value (0-100)
     return Math.sqrt(value) * 100;
 }
-
 
 
 bpmInput.addEventListener('input', () => {
@@ -1063,59 +1481,7 @@ octaveUpButton.addEventListener('click', () => {
     }
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-    createGrid();
-    addLayer(); // Create initial layer
-    bpmValueSpan.textContent = bpmInput.value;
-    updateTotalDurationAndDisplay();
-    renderBusMixer(); // Render the bus mixer on load
-    renderSoundSelectionButtons(); // Render sound selection buttons on load
 
-    // Enable the saveMp3Button only if lamejs is defined
-    if (typeof lamejs !== 'undefined') {
-        saveMp3Button.disabled = false;
-    } else {
-        console.warn("lamejs is not defined. 'Save as MP3' button will remain disabled.");
-    }
-
-    addLayerButton.addEventListener('click', addLayer);
-    saveProjectButton.addEventListener('click', saveProject);
-    loadProjectButton.addEventListener('click', () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.cht';
-        input.onchange = (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            currentProjectFileName = file.name; // Store the loaded file's name
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                try {
-                    const loadedData = JSON.parse(event.target.result);
-                    loadProject(loadedData);
-                } catch (error) {
-                    console.error('Error loading project:', error);
-                    alert('Could not load project file. It may be corrupt.');
-                }
-            };
-            reader.readAsText(file);
-        };
-        input.click();
-    });
-
-    // Initialize tool buttons
-    const sequencerToolsContainer = document.getElementById('sequencer-tools');
-    if (sequencerToolsContainer) {
-        sequencerToolsContainer.addEventListener('click', (e) => {
-            const button = e.target.closest('.retro-button');
-            if (button && button.dataset.toolId) {
-                activeTool = button.dataset.toolId;
-                renderToolButtons();
-            }
-        });
-    }
-    renderToolButtons(); // Initial render of tool buttons
-});
 
 async function saveProject() {
     const projectData = {
@@ -1327,11 +1693,11 @@ saveMp3Button.addEventListener('click', async () => {
 
                 // Use the existing play functions, passing the offline context and the layer's offline gain node
                 if (layer.sfx) {
-                    playSFX(layer.sfx, noteStartTime, noteDuration, noteFrequency, offlineAudioContext, offlineLayerGain);
+                    playSFX(layer.sfx, noteStartTime, noteDuration, audioContext, offlineLayerGain);
                 } else if (layer.instrument) {
-                    playInstrument(layer.instrument, noteFrequency, noteStartTime, noteDuration, offlineAudioContext, offlineLayerGain);
+                    playInstrument(layer.instrument, noteFrequency, noteStartTime, noteDuration, audioContext, offlineLayerGain);
                 } else {
-                    playSound(layer.waveform, noteFrequency, noteStartTime, noteDuration, offlineAudioContext, offlineLayerGain);
+                    playSound(layer.waveform, noteFrequency, noteStartTime, noteDuration, audioContext, offlineLayerGain);
                 }
             });
         }
@@ -1414,3 +1780,109 @@ function fallbackSaveMp3(blob, fileName) {
     URL.revokeObjectURL(url);
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+    createGrid();
+    addLayer(); // Create initial layer
+    bpmValueSpan.textContent = bpmInput.value;
+    updateTotalDurationAndDisplay();
+    renderBusMixer(); // Render the bus mixer on load
+    renderSoundSelectionButtons(); // Render sound selection buttons on load
+
+    barInput.addEventListener('input', updateGridForBarSystem);
+
+    // Enable the saveMp3Button only if lamejs is defined
+    if (typeof lamejs !== 'undefined') {
+        saveMp3Button.disabled = false;
+    } else {
+        console.warn("lamejs is not defined. 'Save as MP3' button will remain disabled.");
+    }
+
+    addLayerButton.addEventListener('click', addLayer);
+    saveProjectButton.addEventListener('click', saveProject);
+    loadProjectButton.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.cht';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            currentProjectFileName = file.name; // Store the loaded file's name
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const loadedData = JSON.parse(event.target.result);
+                    loadProject(loadedData);
+                } catch (error) {
+                    console.error('Error loading project:', error);
+                    alert('Could not load project file. It may be corrupt.');
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    });
+
+    // Initialize tool buttons
+    const sequencerToolsContainer = document.getElementById('sequencer-tools');
+    if (sequencerToolsContainer) {
+        sequencerToolsContainer.addEventListener('click', (e) => {
+            const button = e.target.closest('.retro-button');
+            if (button && button.dataset.toolId) {
+                activeTool = button.dataset.toolId;
+                renderToolButtons();
+            }
+        });
+    }
+    renderToolButtons(); // Initial render of tool buttons
+
+    const toolButtons = document.querySelectorAll('#sequencer-tools .retro-button');
+    toolButtons.forEach(button => {
+        const keybind = button.dataset.keybind;
+        if (keybind) {
+            const popup = document.createElement('div');
+            popup.classList.add('keybind-popup');
+            popup.textContent = keybind;
+            button.style.position = 'relative'; // Needed for absolute positioning of the popup
+            button.appendChild(popup);
+        }
+    });
+
+    // New: Add event listener for the grid wrapper scroll
+    const gridWrapper = document.querySelector('.grid-wrapper');
+    if (gridWrapper) {
+        gridWrapper.addEventListener('scroll', () => {
+            // When the user scrolls the grid, we need to redraw the highlight
+            // to ensure it's in the correct position relative to the viewport.
+            if (isPlaying) {
+                const secondsPerBeat = 60.0 / parseFloat(bpmInput.value);
+                const continuousCol = currentPlaybackTime / secondsPerBeat;
+                highlightColumn(continuousCol);
+            }
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        let newTool = null;
+
+        switch (key) {
+            case 'q':
+                newTool = 'draw';
+                break;
+            case 'w':
+                newTool = 'erase';
+                break;
+            case 'e':
+                newTool = 'select';
+                break;
+            case 'r':
+                newTool = 'move';
+                break;
+        }
+
+        if (newTool && activeTool !== newTool) {
+            activeTool = newTool;
+            renderToolButtons();
+        }
+    });
+});
