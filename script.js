@@ -582,7 +582,7 @@ function updateGridDisplay(displayGrid = grid) {
         for (let j = 0; j < numCols; j++) {
             const cell = document.querySelector(`[data-row='${i}'][data-col='${j}']`);
             if (cell) {
-                cell.classList.remove('active', 'erase-hover');
+                cell.classList.remove('active', 'erase-hover', 'selected');
                 cell.style.gridColumn = '';
                 cell.style.display = 'block';
             }
@@ -613,6 +613,23 @@ function updateGridDisplay(displayGrid = grid) {
             }
         }
     }
+
+    // Highlight selected notes by adding a border to the start cell
+    currentlySelectedNotes.forEach(selected => {
+        const { noteRef, row } = selected;
+        const noteExists = grid[row] && grid[row].includes(noteRef);
+        if (noteExists) {
+            // Check if the note is within the visible range before trying to select it
+            if (noteRef.start <= gridOffset + numCols - 1 && noteRef.end >= gridOffset) {
+                const visualStart = Math.max(0, noteRef.start - gridOffset);
+                const cell = document.querySelector(`[data-row='${row}'][data-col='${visualStart}']`);
+                if (cell) {
+                    cell.classList.add('selected');
+                }
+            }
+        }
+    });
+
     updateGridForBarSystem();
 }
 

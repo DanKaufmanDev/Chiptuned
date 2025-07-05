@@ -85,6 +85,13 @@ body {
 }
 
 .grid-cell.selected {
+    border: 2px solid #ff00ff !important; /* Bright magenta border */
+    box-sizing: border-box; /* Ensure border doesn't increase cell size */
+}
+
+/* Remove the extra styling for .selected.active to keep it simple */
+
+.grid-cell.selected {
     border: 1px solid #ff00ff; /* Magenta border for selection */
 }
 
