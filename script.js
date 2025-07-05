@@ -22,6 +22,8 @@ const busMixerContainer = document.getElementById('bus-mixer-container');
 const soundsPanel = document.getElementById('sounds-panel');
 const barInput = document.getElementById('bar');
 const selectionRectangle = document.getElementById('selection-rectangle');
+const sequencerPrevButton = document.getElementById('sequencer-prev');
+const sequencerNextButton = document.getElementById('sequencer-next');
 
 const waveforms = ['square', 'sine', 'sawtooth', 'triangle'];
 const instruments = ['piano', 'organ', 'synth_lead', 'bass', 'flute', 'trumpet', 'strings'];
@@ -66,6 +68,7 @@ let selectedNotesForMove = [];
 let moveStartCol = -1;
 let moveStartRow = -1;
 let currentlySelectedNotes = [];
+let gridOffset = 0;
 
 function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
@@ -237,11 +240,12 @@ function renderLayerList() {
 
                 let coveredByNote = false;
                 let noteStartingAtThisCell = null;
+                const dataCol = j + gridOffset;
 
                 for (const note of layer.grid[i]) {
-                    if (j >= note.start && j <= note.end) {
+                    if (dataCol >= note.start && dataCol <= note.end) {
                         coveredByNote = true;
-                        if (j === note.start) {
+                        if (dataCol === note.start) {
                             noteStartingAtThisCell = note;
                         }
                         break;
@@ -251,7 +255,9 @@ function renderLayerList() {
                 if (coveredByNote) {
                     if (noteStartingAtThisCell) {
                         cell.style.backgroundColor = 'var(--active-cell-bg)';
-                        cell.style.gridColumn = `${noteStartingAtThisCell.start + 1} / ${noteStartingAtThisCell.end + 2}`;
+                        const visualStart = Math.max(0, noteStartingAtThisCell.start - gridOffset);
+                        const visualEnd = Math.min(numCols - 1, noteStartingAtThisCell.end - gridOffset);
+                        cell.style.gridColumn = `${visualStart + 1} / ${visualEnd + 2}`;
                     } else {
                         cell.style.display = 'none';
                     }
@@ -533,12 +539,16 @@ function createGrid() {
 
 function handleMouseOver(e, row, col) {
     if (activeTool === 'erase') {
-        const note = grid[row].find(note => col >= note.start && col <= note.end);
+        const dataCol = col + gridOffset;
+        const note = grid[row].find(note => dataCol >= note.start && dataCol <= note.end);
         if (note) {
             for (let c = note.start; c <= note.end; c++) {
-                const cell = document.querySelector(`[data-row='${row}'][data-col='${c}']`);
-                if (cell) {
-                    cell.classList.add('erase-hover');
+                const visualCol = c - gridOffset;
+                if (visualCol >= 0 && visualCol < numCols) {
+                    const cell = document.querySelector(`[data-row='${row}'][data-col='${visualCol}']`);
+                    if (cell) {
+                        cell.classList.add('erase-hover');
+                    }
                 }
             }
         }
@@ -547,12 +557,16 @@ function handleMouseOver(e, row, col) {
 
 function handleMouseOut(e, row, col) {
     if (activeTool === 'erase') {
-        const note = grid[row].find(note => col >= note.start && col <= note.end);
+        const dataCol = col + gridOffset;
+        const note = grid[row].find(note => dataCol >= note.start && dataCol <= note.end);
         if (note) {
             for (let c = note.start; c <= note.end; c++) {
-                const cell = document.querySelector(`[data-row='${row}'][data-col='${c}']`);
-                if (cell) {
-                    cell.classList.remove('erase-hover');
+                const visualCol = c - gridOffset;
+                if (visualCol >= 0 && visualCol < numCols) {
+                    const cell = document.querySelector(`[data-row='${row}'][data-col='${visualCol}']`);
+                    if (cell) {
+                        cell.classList.remove('erase-hover');
+                    }
                 }
             }
         }
@@ -560,40 +574,40 @@ function handleMouseOut(e, row, col) {
 }
 
 function updateGridDisplay(displayGrid = grid) {
+    // Clear all cells first
     for (let i = 0; i < numRows; i++) {
         for (let j = 0; j < numCols; j++) {
             const cell = document.querySelector(`[data-row='${i}'][data-col='${j}']`);
+            if (cell) {
+                cell.classList.remove('active');
+                cell.style.gridColumn = '';
+                cell.style.display = 'block';
+            }
+        }
+    }
 
-            // Reset all styles for the current cell
-            cell.classList.remove('active');
-            cell.style.gridColumn = '';
-            cell.style.display = 'block'; // Default to visible
+    // Now, draw the notes that are visible
+    for (let i = 0; i < numRows; i++) {
+        for (const note of displayGrid[i]) {
+            // Check if the note is within the visible range
+            if (note.start <= gridOffset + numCols - 1 && note.end >= gridOffset) {
+                const visualStart = Math.max(0, note.start - gridOffset);
+                const visualEnd = Math.min(numCols - 1, note.end - gridOffset);
 
-            let coveredByNote = false;
-            let noteStartingAtThisCell = null;
+                const startCell = document.querySelector(`[data-row='${i}'][data-col='${visualStart}']`);
+                if (startCell) {
+                    startCell.classList.add('active');
+                    startCell.style.gridColumn = `${visualStart + 1} / ${visualEnd + 2}`;
 
-            // Check if this cell is covered by any note in the current row
-            for (const note of displayGrid[i]) {
-                if (j >= note.start && j <= note.end) {
-                    coveredByNote = true;
-                    if (j === note.start) {
-                        noteStartingAtThisCell = note;
+                    // Hide the cells that are covered by this note
+                    for (let j = visualStart + 1; j <= visualEnd; j++) {
+                        const coveredCell = document.querySelector(`[data-row='${i}'][data-col='${j}']`);
+                        if (coveredCell) {
+                            coveredCell.style.display = 'none';
+                        }
                     }
-                    break; // Found a note covering this cell, no need to check further
                 }
             }
-
-            if (coveredByNote) {
-                if (noteStartingAtThisCell) {
-                    // This cell is the start of a note
-                    cell.classList.add('active');
-                    cell.style.gridColumn = `${noteStartingAtThisCell.start + 1} / ${noteStartingAtThisCell.end + 2}`;
-                } else {
-                    // This cell is part of a note, but not the start
-                    cell.style.display = 'none';
-                }
-            }
-            // If not covered by any note, it remains display: 'block' (default)
         }
     }
     updateGridForBarSystem();
@@ -892,27 +906,29 @@ function stopPlayback(clearGridFlag = false) {
 function handleMouseDown(e, row, col) {
     if (e.button !== 0) return; // Only left click
 
+    const dataCol = col + gridOffset;
+
     if (activeTool === 'draw') {
-        dragStartCol = col;
+        dragStartCol = dataCol;
         dragStartRow = row;
         isDragging = false; // Reset drag state
 
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
     } else if (activeTool === 'erase') {
-        eraseNote(row, col);
+        eraseNote(row, dataCol);
     } else if (activeTool === 'select') {
         clearSelection();
-        selectionStartCol = col;
+        selectionStartCol = dataCol;
         selectionStartRow = row;
-        selectionEndCol = col;
+        selectionEndCol = dataCol;
         selectionEndRow = row;
         isDragging = true; // Indicate that a selection drag has started
 
         document.addEventListener('mousemove', handleSelectionMouseMove);
         document.addEventListener('mouseup', handleSelectionMouseUp);
     } else if (activeTool === 'move') {
-        const noteUnderCursor = grid[row].find(note => col >= note.start && col <= note.end);
+        const noteUnderCursor = grid[row].find(note => dataCol >= note.start && dataCol <= note.end);
 
         // If there's no note under the cursor, do nothing.
         if (!noteUnderCursor) {
@@ -942,7 +958,7 @@ function handleMouseDown(e, row, col) {
         clearSelection();
 
         // And start the move operation.
-        moveStartCol = col;
+        moveStartCol = dataCol;
         moveStartRow = row;
         isDragging = true;
 
@@ -958,8 +974,9 @@ function handleMouseMove(e) {
 
     const gridRect = gridContainer.getBoundingClientRect();
     const mouseX = e.clientX - gridRect.left;
-    let currentCol = Math.floor(mouseX / effectiveColumnWidth);
-    currentCol = Math.max(0, Math.min(numCols - 1, currentCol));
+    let visualCurrentCol = Math.floor(mouseX / effectiveColumnWidth);
+    visualCurrentCol = Math.max(0, Math.min(numCols - 1, visualCurrentCol));
+    const currentCol = visualCurrentCol + gridOffset;
 
     // Only start a drag if the mouse has moved to a different column.
     if (!isDragging && currentCol !== dragStartCol) {
@@ -1009,7 +1026,8 @@ function handleMouseUp() {
 
     if (!isDragging) {
         // If the mouse never moved, it was a simple click.
-        toggleSingleNote(dragStartRow, dragStartCol);
+        const dataCol = dragStartCol;
+        toggleSingleNote(dragStartRow, dataCol);
     } else if (currentNote && currentNote.start > currentNote.end) {
         // If the drag ended with the note being invalid (e.g., squashed to zero size by a collision), remove it.
         const noteIndex = grid[dragStartRow].indexOf(currentNote);
@@ -1038,13 +1056,13 @@ function handleSelectionMouseMove(e) {
     const mouseX = e.clientX - gridRect.left;
     const mouseY = e.clientY - gridRect.top;
 
-    let currentCol = Math.floor(mouseX / effectiveColumnWidth);
+    let visualCurrentCol = Math.floor(mouseX / effectiveColumnWidth);
     let currentRow = Math.floor(mouseY / (gridContainer.offsetHeight / numRows));
 
-    currentCol = Math.max(0, Math.min(numCols - 1, currentCol));
+    visualCurrentCol = Math.max(0, Math.min(numCols - 1, visualCurrentCol));
     currentRow = Math.max(0, Math.min(numRows - 1, currentRow));
 
-    selectionEndCol = currentCol;
+    selectionEndCol = visualCurrentCol + gridOffset;
     selectionEndRow = currentRow;
 
     drawSelectionRectangle();
@@ -1087,17 +1105,20 @@ function handleSelectionMouseUp() {
 }
 
 function drawSelectionRectangle() {
-    const startX = Math.min(selectionStartCol, selectionEndCol);
-    const endX = Math.max(selectionStartCol, selectionEndCol);
+    const visualStartCol = Math.min(selectionStartCol, selectionEndCol) - gridOffset;
+    const visualEndCol = Math.max(selectionStartCol, selectionEndCol) - gridOffset;
     const startY = Math.min(selectionStartRow, selectionEndRow);
     const endY = Math.max(selectionStartRow, selectionEndRow);
+
+    const clampedVisualStartCol = Math.max(0, visualStartCol);
+    const clampedVisualEndCol = Math.min(numCols - 1, visualEndCol);
 
     const cellWidth = effectiveColumnWidth;
     const cellHeight = gridContainer.offsetHeight / numRows;
 
-    const left = gridContainer.offsetLeft + (startX * cellWidth);
+    const left = gridContainer.offsetLeft + (clampedVisualStartCol * cellWidth);
     const top = startY * cellHeight;
-    const width = (endX - startX + 1) * cellWidth;
+    const width = (clampedVisualEndCol - clampedVisualStartCol + 1) * cellWidth;
     const height = (endY - startY + 1) * cellHeight;
 
     selectionRectangle.style.left = `${left}px`;
@@ -1125,8 +1146,9 @@ function handleMoveMouseMove(e) {
     const mouseX = e.clientX - gridRect.left;
     const mouseY = e.clientY - gridRect.top;
 
-    let currentCol = Math.floor(mouseX / effectiveColumnWidth);
+    let visualCurrentCol = Math.floor(mouseX / effectiveColumnWidth);
     let currentRow = Math.floor(mouseY / (gridContainer.offsetHeight / numRows));
+    const currentCol = visualCurrentCol + gridOffset;
 
     const offsetX = currentCol - moveStartCol;
     const offsetY = currentRow - moveStartRow;
@@ -1154,7 +1176,8 @@ function handleMoveMouseMove(e) {
         const newStart = originalNote.start + offsetX;
         const newEnd = originalNote.end + offsetX;
 
-        if (newRow >= 0 && newRow < numRows && newStart >= 0 && newEnd < numCols) {
+        if (newRow >= 0 && newRow < numRows) {
+            tempGrid[newRow] = tempGrid[newRow] || [];
             tempGrid[newRow].push({ start: newStart, end: newEnd });
         }
     });
@@ -1172,8 +1195,9 @@ function handleMoveMouseUp(e) {
     const mouseX = e.clientX - gridRect.left;
     const mouseY = e.clientY - gridRect.top;
 
-    let currentCol = Math.floor(mouseX / effectiveColumnWidth);
+    let visualCurrentCol = Math.floor(mouseX / effectiveColumnWidth);
     let currentRow = Math.floor(mouseY / (gridContainer.offsetHeight / numRows));
+    const currentCol = visualCurrentCol + gridOffset;
 
     const offsetX = currentCol - moveStartCol;
     const offsetY = currentRow - moveStartRow;
@@ -1196,7 +1220,8 @@ function handleMoveMouseUp(e) {
         const newStart = originalNote.start + offsetX;
         const newEnd = originalNote.end + offsetX;
 
-        if (newRow >= 0 && newRow < numRows && newStart >= 0 && newEnd < numCols) {
+        if (newRow >= 0 && newRow < numRows && newStart >= 0) {
+            newGrid[newRow] = newGrid[newRow] || [];
             newGrid[newRow].push({ start: newStart, end: newEnd });
         }
     });
@@ -1227,14 +1252,22 @@ globalPlayPauseButton.addEventListener('click', () => {
     console.log("Global Play/Pause button clicked. isPlaying after:", isPlaying);
 });
 
-function highlightColumn(col) {
+function highlightColumn(col) { // col is continuous absolute data column
     if (effectiveColumnWidth === 0) return;
+
+    const visualCol = col - gridOffset;
+
+    // Hide highlight if it's not in the current view
+    if (visualCol < 0 || visualCol >= numCols) {
+        columnHighlight.classList.add('hidden');
+        columnHighlight.classList.remove('block');
+        return;
+    }
 
     const gridWrapperScrollLeft = Math.round(gridContainer.parentElement.scrollLeft);
 
-    // Highlight the current whole column
-    const currentWholeColumn = Math.floor(col);
-    const highlightLeft = Math.round(gridContainerOffsetLeft) + Math.round(currentWholeColumn * effectiveColumnWidth) - gridWrapperScrollLeft;
+    // The left position should be based on the continuous visual column
+    const highlightLeft = Math.round(gridContainerOffsetLeft) + Math.round(visualCol * effectiveColumnWidth) - gridWrapperScrollLeft;
 
     columnHighlight.style.width = `${Math.round(columnHighlightWidth)}px`;
     columnHighlight.style.left = `${highlightLeft}px`;
@@ -1242,9 +1275,6 @@ function highlightColumn(col) {
     columnHighlight.style.top = `0`;
     columnHighlight.classList.remove('hidden');
     columnHighlight.classList.add('block');
-
-    // Scroll the grid-wrapper to the current column
-    gridContainer.parentElement.scrollLeft = Math.round(currentWholeColumn * effectiveColumnWidth);
 }
 
 function renderBusMixer() {
@@ -1860,6 +1890,25 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    sequencerNextButton.addEventListener('click', () => {
+        const barCount = parseInt(barInput.value, 10);
+        if (isNaN(barCount) || barCount <= 0) return;
+        gridOffset += barCount;
+        renderActiveLayer();
+        renderLayerList();
+    });
+
+    sequencerPrevButton.addEventListener('click', () => {
+        const barCount = parseInt(barInput.value, 10);
+        if (isNaN(barCount) || barCount <= 0) return;
+        gridOffset -= barCount;
+        if (gridOffset < 0) {
+            gridOffset = 0;
+        }
+        renderActiveLayer();
+        renderLayerList();
+    });
 
     document.addEventListener('keydown', (e) => {
         const key = e.key.toLowerCase();
