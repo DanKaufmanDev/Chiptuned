@@ -9,18 +9,17 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="flex flex-col min-h-screen">
-
-    <div id="main-container" class="flex flex-row p-4 mt-2">
+    <!-- Application Container -->
+    <div id="main-container" class="flex flex-row p-4 mt-2 flex-shrink-0 justify-center">
          <!-- Sounds Panel -->
-        <div id="sounds-container" class="retro-container flex flex-col flex-grow">
+        <div id="sounds-container" class="retro-container flex flex-col flex-shrink-0">
             <h2 class="text-2xl font-bold mb-4 text-white flex justify-center">Sounds</h2>
             <div id="sounds-panel" class="flex flex-col items-center">
                 <!-- Sound selection buttons will be rendered here -->
             </div>
         </div>
-
         <!-- Left side: Top, Main, Bottom windows (as a column) -->
-        <div class="flex flex-col flex-grow">
+        <div class="flex flex-col flex-shrink-0">
             <!-- Top Window -->
             <div id="top-window" class="p-4 shadow-lg retro-container flex flex-col justify-center items-center w-full flex-shrink-0">
                 <div class="flex items-center w-full mb-2">
@@ -34,6 +33,7 @@
             <div id="main-app-window" class="p-8 shadow-lg retro-container flex-grow flex flex-col">
                 <h1 class="text-4xl font-bold mb-8 text-white flex justify-center">Chiptuned</h1>
                 <div class="controls mb-8 flex flex-row items-start justify-center">
+                    <!-- Tool Selection -->
                     <div id="sequencer-tools" class="flex flex-row gap-2">
                         <button class="px-4 py-2 text-white font-bold transition duration-300 retro-button" data-tool-id="draw" data-keybind="Q">Draw</button>
                         <button class="px-4 py-2 text-white font-bold transition duration-300 retro-button" data-tool-id="erase" data-keybind="W">Erase</button>
@@ -41,23 +41,26 @@
                         <button class="px-4 py-2 text-white font-bold transition duration-300 retro-button" data-tool-id="move" data-keybind="R">Move</button>
                     </div>
                 </div>
-                <div class="sequencer p-6 shadow-md retro-container flex-grow">
+                <!-- Sequencer Controls -->
+                <div class="sequencer p-6 shadow-md retro-container">
                      <div class="sequencer-controls mb-8 pb-8 border-b-2 border-gray-700 flex flex-wrap justify-center items-center gap-2">
+                        <button id="sequencer-prev" class="px-2 py-2 text-white font-bold transition duration-300 retro-button mr-4"> <- </button>
                         <label for="bpm" class="text-lg mr-2">BPM:</label>
                         <input type="range" id="bpm" min="60" max="240" value="120" class="w-24 h-2 appearance-none cursor-pointer bpm-slider">
                         <span id="bpm-value" class="text-lg font-bold text-white cursor-pointer w-16 text-center">120</span>
                         <input type="number" id="bpm-text-input" class="hidden w-16 text-center bg-gray-700 text-white text-lg font-bold rounded">
                         <label for="bar" class="text-lg mr-2">Bar:</label>
-                        <input type="number" id="bar" value="4" class="w-16 text-center bg-gray-700 text-white text-lg font-bold rounded">
+                        <input type="number" id="bar" value="4" min="4" step="4" class="w-16 text-center bg-gray-700 text-white text-lg font-bold rounded text-center">
                         <label for="loop" class="text-lg mr-2">Loop:</label>
                         <input type="checkbox" id="loop" class="form-checkbox h-5 w-5 text-blue-600 focus:ring-blue-500 retro-checkbox">
                         <button id="clear-grid" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Clear</button>
                         <button id="random-grid" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Random</button>
                         <button id="octave-down" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Octave Down</button>
                         <button id="octave-up" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Octave Up</button>
-                        
+                        <button id="sequencer-next" class="px-2 py-2 text-white font-bold transition duration-300 retro-button ml-4"> -> </button>  
                      </div>
-                    <div class="grid-wrapper relative flex mb-6 overflow-x-auto" style="overflow-y: hidden;">
+                     <!-- Sequencer Grid -->
+                    <div class="grid-wrapper relative flex mb-6 overflow-x-hidden" style="overflow-y: hidden;">
                         <div id="note-labels" class="grid grid-rows-8 gap-0.5 mr-2 w-max flex-shrink-0"></div>
                         <div id="grid-container" class="grid grid-rows-8 grid-cols-32 gap-0.5 flex-shrink-0" style="display: grid; grid-gap: 2px;"></div>
                         <div id="selection-rectangle" class="absolute hidden"></div>
@@ -70,7 +73,6 @@
                     </div>
                 </div>
             </div>
-
             <!-- Bottom Window for Audio Bus Mixer -->
             <div id="bottom-window" class="p-4 shadow-lg retro-container flex flex-row justify-start items-center flex-shrink-0">
                 <div id="bus-mixer-container" class="flex flex-row justify-start items-center overflow-x-hidden">
@@ -78,8 +80,7 @@
                 </div>
             </div>
         </div>
-
-        <!-- Layer Panel -->
+        <!-- Tracks Panel -->
         <div id="layer-container" class="retro-container w-64 p-4 flex flex-col overflow-y-hidden">
             <h2 class="text-2xl font-bold mb-4 text-white flex justify-center">Tracks</h2>
             <div class="pb-4 mb-4 border-b-2 border-gray-700">
