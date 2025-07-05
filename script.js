@@ -783,12 +783,16 @@ function scheduleNote(beatNumber, time) {
     });
 }
 
+let loopHappened = false;
+
 function scheduler() {
     while (nextNoteTime < audioContext.currentTime + scheduleAheadTime) {
         // If looping is enabled and we've reached the end of the sequence, reset
         if (loopCheckbox.checked && currentColumn * (60.0 / parseFloat(bpmInput.value)) >= totalSequenceDuration) {
             currentColumn = 0;
             nextNoteTime = audioContext.currentTime; // Reset nextNoteTime to current audio context time
+            playbackStartTime = audioContext.currentTime;
+            loopHappened = true;
             // Stop any currently playing notes to prevent lingering sounds
             playingNodes.forEach(node => {
                 if (node.oscillator) node.oscillator.stop(0);
@@ -817,26 +821,38 @@ function draw() {
         return;
     }
 
+    if (loopHappened) {
+        gridOffset = 0;
+        renderActiveLayer();
+        renderLayerList();
+        loopHappened = false;
+    }
+
     currentPlaybackTime = audioContext.currentTime - playbackStartTime;
+    const secondsPerBeat = 60.0 / parseFloat(bpmInput.value);
+    const continuousCol = currentPlaybackTime / secondsPerBeat;
+    const currentWholeColumn = Math.floor(continuousCol);
 
     // The loop handling is now primarily in the scheduler function
     // This ensures the UI updates smoothly even if the audio loop resets
-    if (currentPlaybackTime >= totalSequenceDuration && loopCheckbox.checked) {
-        // If looping, reset currentPlaybackTime for smooth progress bar animation
-        currentPlaybackTime = currentPlaybackTime % totalSequenceDuration;
-    } else if (currentPlaybackTime >= totalSequenceDuration && !loopCheckbox.checked) {
+    if (currentPlaybackTime >= totalSequenceDuration && !loopCheckbox.checked) {
         // If not looping and reached end, stop playback
         stopPlayback();
         return;
     }
 
+    // Auto-scroll logic
+    const barCount = parseInt(barInput.value, 10);
+    if (currentWholeColumn >= gridOffset + numCols) {
+        gridOffset += barCount;
+        renderActiveLayer();
+        renderLayerList();
+    }
+
     globalProgressBar.value = currentPlaybackTime;
     globalTimestamp.textContent = `${formatTime(currentPlaybackTime)}/${formatTime(totalSequenceDuration)}`;
 
-    const secondsPerBeat = 60.0 / parseFloat(bpmInput.value);
-    const continuousCol = currentPlaybackTime / secondsPerBeat;
-
-    highlightColumn(continuousCol);
+    highlightColumn(currentWholeColumn);
 
     animationFrameId = requestAnimationFrame(draw);
 }
@@ -1243,13 +1259,14 @@ function handleMoveMouseUp(e) {
 }
 
 globalPlayPauseButton.addEventListener('click', () => {
-    console.log("Global Play/Pause button clicked. isPlaying before:", isPlaying);
     if (isPlaying) {
         stopPlayback();
     } else {
+        gridOffset = 0;
+        renderActiveLayer();
+        renderLayerList();
         startPlayback();
     }
-    console.log("Global Play/Pause button clicked. isPlaying after:", isPlaying);
 });
 
 function highlightColumn(col) { // col is continuous absolute data column
@@ -1415,6 +1432,7 @@ bpmTextInput.addEventListener('keydown', (e) => {
 
 
 clearGridButton.addEventListener('click', () => {
+    gridOffset = 0;
     layers[activeLayerIndex].grid = Array(numRows).fill(null).map(() => []); // Clear the active layer's grid data
     renderActiveLayer(); // Re-render the main grid
     renderLayerList(); // Re-render the layer list
