@@ -2274,6 +2274,14 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+document.addEventListener('keydown', (e) => {
+    // Ctrl+A or Cmd+A for select all
+    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault(); // Prevent default browser select all
+        selectAllNotes();
+    }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     createGrid();
     addLayer(); // Create initial layer
