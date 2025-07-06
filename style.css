@@ -454,4 +454,21 @@ body {
     min-width: 0; /* Critical for flex items to allow scrolling */
 }
 
+/* Custom Scrollbar for Webkit browsers */
+#bottom-window::-webkit-scrollbar {
+    height: 14px; /* Increased height to accommodate the border "padding" */
+}
+
+#bottom-window::-webkit-scrollbar-track {
+    background: #4a5568; /* Match BPM slider background */
+    border-radius: 10px;
+    border: solid 2px transparent; /* Add transparent border to create space */
+}
+
+#bottom-window::-webkit-scrollbar-thumb {
+    background-color: #ffffff; /* Match BPM slider thumb color */
+    border-radius: 10px;
+    border: 3px solid #4a5568; /* Creates padding around thumb */
+}
+
 #main-app-window {}
