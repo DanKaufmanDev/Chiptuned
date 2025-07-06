@@ -1258,25 +1258,48 @@ function handleMouseUp() {
     if (!isDragging) {
         // This was a simple click, not a drag.
         if (!isExtendingSelection) {
-            // If not extending, it was a click to create/delete a single-cell note.
+            // If not extending a selection, it was a click to create/delete a single-cell note.
             toggleSingleNote(dragStartRow, dragStartCol);
         }
-        // If it was a click on a selection, we do nothing, leaving it selected.
+        // If it was a click on an existing selection, we do nothing, leaving it selected.
     } else {
         // This was a drag operation.
-        // Final cleanup: check for any notes that became invalid (e.g., squashed to zero size by a collision) and remove them.
-        const notesToProcess = isExtendingSelection ? selectionDragData.map(d => d.noteRef) : [currentNote];
-        notesToProcess.forEach(note => {
-            if (note && note.start > note.end) {
-                for (const row of grid) {
-                    const noteIndex = row.indexOf(note);
-                    if (noteIndex > -1) {
-                        row.splice(noteIndex, 1);
-                        break;
+        if (isExtendingSelection) {
+            // The drag has finished. First, get a list of the notes that were being dragged.
+            const notesThatWereDragged = selectionDragData.map(d => d.noteRef);
+
+            // Now, explicitly rebuild the selection state to ensure it's perfectly synchronized.
+            clearSelection(); // Clear the old selection array.
+
+            notesThatWereDragged.forEach(note => {
+                // Check if the note is still valid (i.e., it wasn't squashed to zero size).
+                if (note.start <= note.end) {
+                    // Find which row this note now belongs to.
+                    for (let r = 0; r < grid.length; r++) {
+                        if (grid[r].includes(note)) {
+                            currentlySelectedNotes.push({ noteRef: note, row: r });
+                            break; // Found it, move to the next note.
+                        }
+                    }
+                } else {
+                    // If the note became invalid, find it in the grid and remove it completely.
+                     for (let r = 0; r < grid.length; r++) {
+                        const noteIndex = grid[r].indexOf(note);
+                        if (noteIndex > -1) {
+                            grid[r].splice(noteIndex, 1);
+                            break;
+                        }
                     }
                 }
+            });
+
+        } else if (currentNote && currentNote.start > currentNote.end) {
+            // If a newly drawn single note is invalid, remove it.
+            const noteIndex = grid[dragStartRow].indexOf(currentNote);
+            if (noteIndex > -1) {
+                grid[dragStartRow].splice(noteIndex, 1);
             }
-        });
+        }
     }
 
     // Reset all temporary state variables for the next user action.
