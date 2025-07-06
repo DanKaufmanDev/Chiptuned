@@ -306,13 +306,7 @@ body {
 #bus-mixer-container {
     display: flex;
     gap: 1rem;
-    padding: 1rem; /* Adjusted padding */
-    width: 100%;
-    height: auto;
-    max-height: 144px; /* Explicitly constrain vertical space */
-    overflow-x: auto;
-    overflow-y: hidden;
-    min-width: 0;
+    flex-wrap: nowrap;
 }
 
 /* Custom Scrollbar for Webkit browsers */
@@ -344,6 +338,7 @@ body {
     height: 128px;
     width: 118px; /* Fixed width to prevent stretching */
     gap: 0.25rem; /* Add a small gap */
+    flex-shrink: 0; /* Prevent shrinking */
 }
 
 .bus-container.active-bus {
@@ -455,6 +450,8 @@ body {
 #bottom-window {
     height: 11rem;
     overflow-y: hidden;
+    overflow-x: auto;
+    min-width: 0; /* Critical for flex items to allow scrolling */
 }
 
 #main-app-window {}
