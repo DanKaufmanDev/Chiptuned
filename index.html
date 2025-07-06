@@ -50,7 +50,7 @@
                 <!-- Sequencer Controls -->
                 <div class="sequencer p-6 shadow-md retro-container noselect">
                      <div class="sequencer-controls mb-8 pb-8 border-b-2 border-gray-700 flex flex-wrap justify-center items-center gap-2">
-                        <button id="sequencer-prev" class="px-2 py-2 text-white font-bold transition duration-300 retro-button mr-4"> <- </button>
+                        <button id="sequencer-prev" class="px-2 py-2 text-white transition duration-300 retro-button mr-4 sequencer-arrow-button">&#x2190;</button>
                         <label for="bpm" class="text-lg mr-2">BPM:</label>
                         <input type="range" id="bpm" min="60" max="240" value="120" class="w-24 h-2 appearance-none cursor-pointer bpm-slider">
                         <span id="bpm-value" class="text-lg font-bold text-white cursor-pointer w-16 text-center">120</span>
@@ -63,7 +63,7 @@
                         <button id="random-grid" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Random</button>
                         <button id="octave-down" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Octave Down</button>
                         <button id="octave-up" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Octave Up</button>
-                        <button id="sequencer-next" class="px-2 py-2 text-white font-bold transition duration-300 retro-button ml-4"> -> </button>  
+                        <button id="sequencer-next" class="px-2 py-2 font-bold transition duration-300 retro-button ml-4 sequencer-arrow-button">&#x2192;</button>  
                      </div>
                      <!-- Sequencer Grid -->
                     <div class="grid-wrapper relative flex mb-6 overflow-x-hidden" style="overflow-y: hidden;">
