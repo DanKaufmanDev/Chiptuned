@@ -2129,6 +2129,12 @@ exportWavButton.addEventListener('click', async () => {
     await exportAudio('wav');
 });
 
+exportDialogOverlay.addEventListener('click', (e) => {
+    if (e.target === exportDialogOverlay) {
+        exportDialogOverlay.classList.add('hidden');
+    }
+});
+
 async function exportAudio(format) {
     const bpm = parseFloat(bpmInput.value);
     const fileName = `chiptuned_${bpm}BPM_${layers[activeLayerIndex].sfx || layers[activeLayerIndex].instrument || layers[activeLayerIndex].waveform}`;
