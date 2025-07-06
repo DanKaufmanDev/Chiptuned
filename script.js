@@ -15,6 +15,10 @@ const saveMp3Button = document.getElementById('save-mp3');
 const saveProjectButton = document.getElementById('save-project');
 const newProjectButton = document.getElementById('new-project');
 const loadProjectButton = document.getElementById('load-project');
+const confirmationDialogOverlay = document.getElementById('confirmation-dialog-overlay');
+const confirmationMessage = document.getElementById('confirmation-message');
+const confirmButton = document.getElementById('confirm-button');
+const cancelButton = document.getElementById('cancel-button');
 const columnHighlight = document.getElementById('column-highlight');
 const bpmTextInput = document.getElementById('bpm-text-input');
 const addLayerButton = document.getElementById('add-layer');
@@ -594,81 +598,6 @@ gridContainer.addEventListener('mouseleave', () => {
     allEraseHovers.forEach(cell => cell.classList.remove('erase-hover'));
     spliceLine.classList.add('hidden');
 });
-
-function handleMouseOver(e, row, col) {
-    let dataCol;
-    if (activeTool === 'splice' || activeTool === 'erase') {
-        const gridRect = gridContainer.getBoundingClientRect();
-        const mouseX = e.clientX - gridRect.left;
-        const visualCurrentCol = Math.floor(mouseX / effectiveColumnWidth);
-        dataCol = visualCurrentCol + gridOffset;
-    } else {
-        dataCol = col + gridOffset;
-    }
-
-    if (activeTool === 'erase') {
-        const note = grid[row].find(note => dataCol >= note.start && dataCol <= note.end);
-        if (note) {
-            for (let c = note.start; c <= note.end; c++) {
-                const visualCol = c - gridOffset;
-                if (visualCol >= 0 && visualCol < numCols) {
-                    const cell = document.querySelector(`[data-row='${row}'][data-col='${visualCol}']`);
-                    if (cell) {
-                        cell.classList.add('erase-hover');
-                    }
-                }
-            }
-        }
-    } else if (activeTool === 'splice') {
-        const note = grid[row].find(note => dataCol >= note.start && dataCol <= note.end);
-
-        // A note is sustained if its end is after its start.
-        const isSustained = note && note.end > note.start;
-        // A split is valid only if it's not on the very first cell of the note.
-        const isValidSplitPoint = note && dataCol > note.start;
-
-        if (isSustained && isValidSplitPoint) {
-            // We need to find the actual cell element to apply the class to.
-            // The `col` parameter might be the start of the long note, not the hovered cell.
-            const visualCol = dataCol - gridOffset;
-            const cell = document.querySelector(`[data-row='${row}'][data-col='${visualCol}']`);
-            if (cell) {
-                cell.classList.add('splice-hover');
-            }
-        }
-    }
-}
-
-function handleMouseOut(e, row, col) {
-    let dataCol;
-    if (activeTool === 'splice' || activeTool === 'erase') {
-        const gridRect = gridContainer.getBoundingClientRect();
-        const mouseX = e.clientX - gridRect.left;
-        const visualCurrentCol = Math.floor(mouseX / effectiveColumnWidth);
-        dataCol = visualCurrentCol + gridOffset;
-    } else {
-        dataCol = col + gridOffset;
-    }
-
-    if (activeTool === 'erase') {
-        const note = grid[row].find(note => dataCol >= note.start && dataCol <= note.end);
-        if (note) {
-            for (let c = note.start; c <= note.end; c++) {
-                const visualCol = c - gridOffset;
-                if (visualCol >= 0 && visualCol < numCols) {
-                    const cell = document.querySelector(`[data-row='${row}'][data-col='${visualCol}']`);
-                    if (cell) {
-                        cell.classList.remove('erase-hover');
-                    }
-                }
-            }
-        }
-    } else if (activeTool === 'splice') {
-        // Since we don't know which cell had the hover, we have to remove it from all of them.
-        const allSpliceHovers = document.querySelectorAll('.splice-hover');
-        allSpliceHovers.forEach(cell => cell.classList.remove('splice-hover'));
-    }
-}
 
 function updateGridDisplay(displayGrid = grid) {
     // Clear all cells first
@@ -1693,7 +1622,7 @@ function resetProject() {
     historyIndex = -1;
 
     // Reset master gain
-    masterGainNode.gain.value = 0.7; // Default master volume
+    masterGainNode.gain.value = 1.0; // Default master volume (max)
 
     // Create a single, fresh layer
     addLayer(); 
@@ -1711,9 +1640,38 @@ function resetProject() {
     currentProjectFileName = 'my_chiptuned_project.cht';
 }
 
-newProjectButton.addEventListener('click', () => {
+let resolveConfirmationPromise;
+
+function showConfirmationDialog(message) {
+    confirmationMessage.innerHTML = message;
+    confirmationDialogOverlay.classList.remove('hidden');
+    return new Promise(resolve => {
+        resolveConfirmationPromise = resolve;
+    });
+}
+
+function hideConfirmationDialog() {
+    confirmationDialogOverlay.classList.add('hidden');
+}
+
+confirmButton.addEventListener('click', () => {
+    hideConfirmationDialog();
+    if (resolveConfirmationPromise) {
+        resolveConfirmationPromise(true);
+    }
+});
+
+cancelButton.addEventListener('click', () => {
+    hideConfirmationDialog();
+    if (resolveConfirmationPromise) {
+        resolveConfirmationPromise(false);
+    }
+});
+
+newProjectButton.addEventListener('click', async () => {
     if (hasUnsavedChanges) {
-        if (confirm('You have unsaved changes. Are you sure you want to start a new project?')) {
+        const confirmed = await showConfirmationDialog('You have unsaved changes.<br>Are you sure you want to start a new project?');
+        if (confirmed) {
             resetProject();
         }
     } else {

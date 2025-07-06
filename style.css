@@ -118,8 +118,16 @@ body {
     pointer-events: none;
 }
 
-.retro-button:hover .keybind-popup {
+#sequencer-tools .retro-button:hover .keybind-popup {
     opacity: 1;
+}
+
+#confirmation-dialog-overlay {
+    z-index: 1000; /* Ensure it's on top of everything */
+}
+
+#confirmation-dialog-overlay.hidden {
+    display: none;
 }
 
 #selection-rectangle {
