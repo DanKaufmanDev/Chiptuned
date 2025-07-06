@@ -77,7 +77,7 @@
                         <button id="new-project" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">New Project</button>
                         <button id="save-project" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Save Project</button>
                         <button id="load-project" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Load Project</button>
-                        <button id="save-mp3" disabled class="px-4 py-2 text-white font-bold transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed retro-button">Save as MP3</button>
+                        <button id="save-mp3" disabled class="px-4 py-2 text-white font-bold transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed retro-button">Export</button>
                     </div>
                 </div>
             </div>
@@ -105,6 +105,17 @@
             <div class="flex justify-center gap-4">
                 <button id="confirm-button" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Confirm</button>
                 <button id="cancel-button" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Dialog -->
+    <div id="export-dialog-overlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+        <div class="retro-container p-8">
+            <p class="text-white text-lg mb-6 text-center">Choose export format:</p>
+            <div class="flex justify-center gap-4">
+                <button id="export-mp3-button" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Save as MP3</button>
+                <button id="export-wav-button" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Save as WAV</button>
             </div>
         </div>
     </div>

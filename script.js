@@ -12,6 +12,9 @@ const randomGridButton = document.getElementById('random-grid');
 const octaveDownButton = document.getElementById('octave-down');
 const octaveUpButton = document.getElementById('octave-up');
 const saveMp3Button = document.getElementById('save-mp3');
+const exportDialogOverlay = document.getElementById('export-dialog-overlay');
+const exportMp3Button = document.getElementById('export-mp3-button');
+const exportWavButton = document.getElementById('export-wav-button');
 const saveProjectButton = document.getElementById('save-project');
 const newProjectButton = document.getElementById('new-project');
 const loadProjectButton = document.getElementById('load-project');
@@ -1318,6 +1321,16 @@ function pasteNotes() {
     console.log("Notes pasted from clipboard.");
 }
 
+function selectAllNotes() {
+    currentlySelectedNotes = [];
+    for (let r = 0; r < numRows; r++) {
+        for (const note of grid[r]) {
+            currentlySelectedNotes.push({ noteRef: note, row: r });
+        }
+    }
+    updateGridDisplay();
+}
+
 function handleMoveMouseMove(e) {
     if (!isDragging || activeTool !== 'move') return;
 
@@ -1925,13 +1938,27 @@ async function loadProject(data) {
     }
 }
 
-saveMp3Button.addEventListener('click', async () => {
+
+saveMp3Button.addEventListener('click', () => {
+    exportDialogOverlay.classList.remove('hidden');
+});
+
+exportMp3Button.addEventListener('click', async () => {
+    exportDialogOverlay.classList.add('hidden');
+    await exportAudio('mp3');
+});
+
+exportWavButton.addEventListener('click', async () => {
+    exportDialogOverlay.classList.add('hidden');
+    await exportAudio('wav');
+});
+
+async function exportAudio(format) {
     const bpm = parseFloat(bpmInput.value);
-    const fileName = `chiptuned_${bpm}BPM_${layers[activeLayerIndex].sfx || layers[activeLayerIndex].instrument || layers[activeLayerIndex].waveform}.mp3`;
+    const fileName = `chiptuned_${bpm}BPM_${layers[activeLayerIndex].sfx || layers[activeLayerIndex].instrument || layers[activeLayerIndex].waveform}`;
 
     const noteDurationPerColumn = 60 / bpm;
 
-    // Calculate the actual duration based on the last note
     let maxColWithNote = -1;
     layers.forEach(layer => {
         layer.grid.forEach(row => {
@@ -1946,27 +1973,33 @@ saveMp3Button.addEventListener('click', async () => {
     const totalDuration = (maxColWithNote + 1) * noteDurationPerColumn;
 
     if (totalDuration <= 0) {
-        alert("Cannot save an empty track. Please add some notes first.");
+        alert("Cannot export an empty track. Please add some notes first.");
         return;
     }
 
+    const renderedBuffer = await renderAudioToBuffer(totalDuration);
+
+    if (format === 'mp3') {
+        await saveMp3(renderedBuffer, fileName + '.mp3');
+    } else if (format === 'wav') {
+        await saveWav(renderedBuffer, fileName + '.wav');
+    }
+}
+
+async function renderAudioToBuffer(totalDuration) {
     const offlineAudioContext = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
         2, // Number of channels (stereo)
         Math.ceil(audioContext.sampleRate * totalDuration), // Use Math.ceil for safety
         audioContext.sampleRate // Sample rate
     );
 
-    // Create an offline master gain node that mirrors the main one
     const offlineMasterGain = offlineAudioContext.createGain();
     offlineMasterGain.gain.value = masterGainNode.gain.value;
     offlineMasterGain.connect(offlineAudioContext.destination);
 
     layers.forEach(layer => {
-        // We don't need to check for isMuted here because the gainNode's value will be 0 if muted.
-        
-        // Create an offline gain node for this layer that mirrors the main one
         const offlineLayerGain = offlineAudioContext.createGain();
-        offlineLayerGain.gain.value = layer.gainNode.gain.value; // This will be 0 if muted
+        offlineLayerGain.gain.value = layer.gainNode.gain.value;
         offlineLayerGain.connect(offlineMasterGain);
 
         const layerFrequencies = [];
@@ -1976,87 +2009,157 @@ saveMp3Button.addEventListener('click', async () => {
 
         for (let i = 0; i < numRows; i++) {
             layer.grid[i].forEach(note => {
-                const noteStartTime = note.start * noteDurationPerColumn;
-                const noteDuration = (note.end - note.start + 1) * noteDurationPerColumn;
+                const noteStartTime = note.start * (60 / parseFloat(bpmInput.value));
+                const noteDuration = (note.end - note.start + 1) * (60 / parseFloat(bpmInput.value));
                 const noteFrequency = layerFrequencies[i];
 
-                // Use the existing play functions, passing the offline context and the layer's offline gain node
                 if (layer.sfx) {
-                    playSFX(layer.sfx, noteStartTime, noteDuration, audioContext, offlineLayerGain);
+                    playSFX(layer.sfx, noteStartTime, noteDuration, offlineAudioContext, offlineLayerGain);
                 } else if (layer.instrument) {
-                    playInstrument(layer.instrument, noteFrequency, noteStartTime, noteDuration, audioContext, offlineLayerGain);
+                    playInstrument(layer.instrument, noteFrequency, noteStartTime, noteDuration, offlineAudioContext, offlineLayerGain);
                 } else {
-                    playSound(layer.waveform, noteFrequency, noteStartTime, noteDuration, audioContext, offlineLayerGain);
+                    playSound(layer.waveform, noteFrequency, noteStartTime, noteDuration, offlineAudioContext, offlineLayerGain);
                 }
             });
         }
     });
 
-    offlineAudioContext.startRendering().then(async function(renderedBuffer) {
-        const mp3encoder = new lamejs.Mp3Encoder(2, renderedBuffer.sampleRate, 128); // 2 channels, sample rate, 128 kbps
-        const mp3Data = [];
+    return offlineAudioContext.startRendering();
+}
 
-        const left = renderedBuffer.getChannelData(0);
-        const right = renderedBuffer.getChannelData(1);
-        const sampleBlockSize = 1152; // Can be anything, but 1152 is a typical MP3 frame size
+async function saveMp3(renderedBuffer, fileName) {
+    const mp3encoder = new lamejs.Mp3Encoder(2, renderedBuffer.sampleRate, 128); // 2 channels, sample rate, 128 kbps
+    const mp3Data = [];
 
-        // Convert Float32Array to Int16Array
-        function floatTo16BitPCM(input) {
-            const output = new Int16Array(input.length);
-            for (let i = 0; i < input.length; i++) {
-                let s = Math.max(-1, Math.min(1, input[i]));
-                output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-            }
-            return output;
+    const left = renderedBuffer.getChannelData(0);
+    const right = renderedBuffer.getChannelData(1);
+    const sampleBlockSize = 1152;
+
+    function floatTo16BitPCM(input) {
+        const output = new Int16Array(input.length);
+        for (let i = 0; i < input.length; i++) {
+            let s = Math.max(-1, Math.min(1, input[i]));
+            output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
+        return output;
+    }
 
-        const pcmLeft = floatTo16BitPCM(left);
-        const pcmRight = floatTo16BitPCM(right);
+    const pcmLeft = floatTo16BitPCM(left);
+    const pcmRight = floatTo16BitPCM(right);
 
-        for (let i = 0; i < pcmLeft.length; i += sampleBlockSize) {
-            const leftChunk = pcmLeft.subarray(i, i + sampleBlockSize);
-            const rightChunk = pcmRight.subarray(i, i + sampleBlockSize);
-            const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
-            if (mp3buf.length > 0) {
-                mp3Data.push(mp3buf);
-            }
-        }
-
-        const mp3buf = mp3encoder.flush(); // Flush any remaining data
+    for (let i = 0; i < pcmLeft.length; i += sampleBlockSize) {
+        const leftChunk = pcmLeft.subarray(i, i + sampleBlockSize);
+        const rightChunk = pcmRight.subarray(i, i + sampleBlockSize);
+        const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
         if (mp3buf.length > 0) {
             mp3Data.push(mp3buf);
         }
+    }
 
-        const blob = new Blob(mp3Data, { type: 'audio/mp3' });
+    const mp3buf = mp3encoder.flush();
+    if (mp3buf.length > 0) {
+        mp3Data.push(mp3buf);
+    }
 
-        // Try to use the File System Access API
-        if ('showSaveFilePicker' in window) {
-            try {
-                const handle = await window.showSaveFilePicker({
-                    suggestedName: fileName,
-                    types: [{
-                        description: 'MP3 Audio File',
-                        accept: { 'audio/mp3': ['.mp3'] },
-                    }],
-                });
-                const writable = await handle.createWritable();
-                await writable.write(blob);
-                await writable.close();
-            } catch (err) {
-                if (err.name !== 'AbortError') {
-                    console.error('Error saving MP3 using File System Access API:', err);
-                    fallbackSaveMp3(blob, fileName);
-                }
-            }
-        } else {
-            // Fallback for browsers that do not support File System Access API
-            fallbackSaveMp3(blob, fileName);
+    const blob = new Blob(mp3Data, { type: 'audio/mp3' });
+    await saveFile(blob, fileName, 'MP3 Audio File', '.mp3');
+}
+
+async function saveWav(renderedBuffer, fileName) {
+    const wavData = encodeWAV(renderedBuffer);
+    const blob = new Blob([wavData], { type: 'audio/wav' });
+    await saveFile(blob, fileName, 'WAV Audio File', '.wav');
+}
+
+function encodeWAV(audioBuffer) {
+    const numOfChannels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const format = 1; // PCM
+    const bitDepth = 16;
+    const bytesPerSample = bitDepth / 8;
+
+    const leftChannel = audioBuffer.getChannelData(0);
+    const rightChannel = numOfChannels > 1 ? audioBuffer.getChannelData(1) : null;
+
+    const dataLength = audioBuffer.length * numOfChannels * bytesPerSample;
+    const buffer = new ArrayBuffer(44 + dataLength);
+    const view = new DataView(buffer);
+
+    /* RIFF identifier */
+    writeString(view, 0, 'RIFF');
+    /* file length */
+    view.setUint32(4, 36 + dataLength, true);
+    /* RIFF type */
+    writeString(view, 8, 'WAVE');
+    /* format chunk identifier */
+    writeString(view, 12, 'fmt ');
+    /* format chunk length */
+    view.setUint32(16, 16, true);
+    /* sample format (raw PCM) */
+    view.setUint16(20, format, true);
+    /* channel count */
+    view.setUint16(22, numOfChannels, true);
+    /* sample rate */
+    view.setUint32(24, sampleRate, true);
+    /* byte rate (sample rate * block align) */
+    view.setUint32(28, sampleRate * numOfChannels * bytesPerSample, true);
+    /* block align (channels * bytes per sample) */
+    view.setUint16(32, numOfChannels * bytesPerSample, true);
+    /* bits per sample */
+    view.setUint16(34, bitDepth, true);
+    /* data chunk identifier */
+    writeString(view, 36, 'data');
+    /* data chunk length */
+    view.setUint32(40, dataLength, true);
+
+    // Write the audio data, interleaving channels for stereo
+    let offset = 44;
+    for (let i = 0; i < audioBuffer.length; i++) {
+        // Convert float to 16-bit PCM
+        let s = Math.max(-1, Math.min(1, leftChannel[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        offset += bytesPerSample;
+
+        if (numOfChannels > 1 && rightChannel) {
+            s = Math.max(-1, Math.min(1, rightChannel[i]));
+            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            offset += bytesPerSample;
         }
+    }
 
-    }).catch(function(err) {
-        console.error('Rendering failed: ' + err);
-    });
-});
+    return buffer;
+}
+
+function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+    }
+}
+
+async function saveFile(blob, fileName, description, extension) {
+    if ('showSaveFilePicker' in window) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: fileName,
+                types: [{
+                    description: description,
+                    accept: { 'audio/*': [extension] },
+                }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.error(`Error saving ${extension} using File System Access API:`, err);
+                fallbackSave(blob, fileName);
+            }
+        }
+    } else {
+        fallbackSave(blob, fileName);
+    }
+}
+
 
 function fallbackSaveMp3(blob, fileName) {
     const url = URL.createObjectURL(blob);
@@ -2159,9 +2262,17 @@ function restoreState(state) {
 }
 
 function updateUndoRedoButtons() {
-    undoButton.disabled = historyIndex <= 0;
-    redoButton.disabled = historyIndex >= history.length - 1;
+    undoButton.disabled = historyIndex === 0;
+    redoButton.disabled = historyIndex === history.length - 1;
 }
+
+document.addEventListener('keydown', (e) => {
+    // Ctrl+A or Cmd+A for select all
+    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault(); // Prevent default browser select all
+        selectAllNotes();
+    }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     createGrid();
