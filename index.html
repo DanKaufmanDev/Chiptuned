@@ -38,6 +38,7 @@
                         <button id="tool-undo" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Undo</button>
                         <button id="tool-redo" class="px-4 py-2 text-white font-bold transition duration-300 retro-button mr-10">Redo</button>
                         <button class="px-4 py-2 text-white font-bold transition duration-300 retro-button" data-tool-id="draw" data-keybind="Q">Draw</button>
+                        <button class="px-4 py-2 text-white font-bold transition duration-300 retro-button" data-tool-id="splice" data-keybind="S">Splice</button>
                         <button class="px-4 py-2 text-white font-bold transition duration-300 retro-button" data-tool-id="erase" data-keybind="W">Erase</button>
                         <button class="px-4 py-2 text-white font-bold transition duration-300 retro-button" data-tool-id="select" data-keybind="E">Select</button>
                         <button class="px-4 py-2 text-white font-bold transition duration-300 retro-button" data-tool-id="move" data-keybind="R">Move</button>
@@ -68,6 +69,7 @@
                     <div class="grid-wrapper relative flex mb-6 overflow-x-hidden" style="overflow-y: hidden;">
                         <div id="note-labels" class="grid grid-rows-8 gap-0.5 mr-2 w-max flex-shrink-0"></div>
                         <div id="grid-container" class="grid grid-rows-8 grid-cols-32 gap-0.5 flex-shrink-0" style="display: grid; grid-gap: 2px;"></div>
+                        <div id="splice-line" class="absolute top-0 bottom-0 hidden" style="background-color: #800000; width: 1px; pointer-events: none;"></div>
                         <div id="selection-rectangle" class="absolute hidden"></div>
                         <div id="column-highlight" class="absolute top-0 bottom-0 bg-red-500 opacity-50 pointer-events-none hidden"></div>
                     </div>

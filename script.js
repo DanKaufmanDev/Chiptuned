@@ -22,6 +22,7 @@ const busMixerContainer = document.getElementById('bus-mixer-container');
 const soundsPanel = document.getElementById('sounds-panel');
 const barInput = document.getElementById('bar');
 const selectionRectangle = document.getElementById('selection-rectangle');
+const spliceLine = document.getElementById('splice-line');
 const sequencerPrevButton = document.getElementById('sequencer-prev');
 const sequencerNextButton = document.getElementById('sequencer-next');
 
@@ -519,8 +520,6 @@ function createGrid() {
             cell.dataset.row = i;
             cell.dataset.col = j;
             cell.addEventListener('mousedown', (e) => handleMouseDown(e, i, j));
-            cell.addEventListener('mouseover', (e) => handleMouseOver(e, i, j));
-            cell.addEventListener('mouseout', (e) => handleMouseOut(e, i, j));
             gridContainer.appendChild(cell);
         }
     }
@@ -540,9 +539,72 @@ function createGrid() {
     updateGridForBarSystem();
 }
 
+gridContainer.addEventListener('mousemove', (e) => {
+    if (activeTool !== 'splice' && activeTool !== 'erase') {
+        spliceLine.classList.add('hidden');
+        return;
+    }
+
+    const gridRect = gridContainer.getBoundingClientRect();
+    const mouseX = e.clientX - gridRect.left;
+    const mouseY = e.clientY - gridRect.top;
+
+    const visualCol = Math.floor(mouseX / effectiveColumnWidth);
+    const row = Math.floor(mouseY / (gridContainer.offsetHeight / numRows));
+    const dataCol = visualCol + gridOffset;
+
+    // Clear previous erase hover effects
+    const allEraseHovers = document.querySelectorAll('.erase-hover');
+    allEraseHovers.forEach(cell => cell.classList.remove('erase-hover'));
+
+    if (row < 0 || row >= numRows || visualCol < 0 || visualCol >= numCols) {
+        spliceLine.classList.add('hidden');
+        return;
+    }
+
+    const note = grid[row] ? grid[row].find(note => dataCol >= note.start && dataCol <= note.end) : null;
+
+    if (activeTool === 'erase' && note) {
+        spliceLine.classList.add('hidden');
+        for (let c = note.start; c <= note.end; c++) {
+            const vCol = c - gridOffset;
+            if (vCol >= 0 && vCol < numCols) {
+                const cell = document.querySelector(`[data-row='${row}'][data-col='${vCol}']`);
+                if (cell) cell.classList.add('erase-hover');
+            }
+        }
+    } else if (activeTool === 'splice' && note && dataCol > note.start) {
+        const cellHeight = gridContainer.offsetHeight / numRows;
+        const top = row * cellHeight;
+        const left = gridContainer.offsetLeft + (visualCol * effectiveColumnWidth);
+
+        spliceLine.style.top = `${top}px`;
+        spliceLine.style.left = `${left}px`;
+        spliceLine.style.height = `${cellHeight}px`;
+        spliceLine.classList.remove('hidden');
+    } else {
+        spliceLine.classList.add('hidden');
+    }
+});
+
+gridContainer.addEventListener('mouseleave', () => {
+    const allEraseHovers = document.querySelectorAll('.erase-hover');
+    allEraseHovers.forEach(cell => cell.classList.remove('erase-hover'));
+    spliceLine.classList.add('hidden');
+});
+
 function handleMouseOver(e, row, col) {
+    let dataCol;
+    if (activeTool === 'splice' || activeTool === 'erase') {
+        const gridRect = gridContainer.getBoundingClientRect();
+        const mouseX = e.clientX - gridRect.left;
+        const visualCurrentCol = Math.floor(mouseX / effectiveColumnWidth);
+        dataCol = visualCurrentCol + gridOffset;
+    } else {
+        dataCol = col + gridOffset;
+    }
+
     if (activeTool === 'erase') {
-        const dataCol = col + gridOffset;
         const note = grid[row].find(note => dataCol >= note.start && dataCol <= note.end);
         if (note) {
             for (let c = note.start; c <= note.end; c++) {
@@ -555,12 +617,38 @@ function handleMouseOver(e, row, col) {
                 }
             }
         }
+    } else if (activeTool === 'splice') {
+        const note = grid[row].find(note => dataCol >= note.start && dataCol <= note.end);
+
+        // A note is sustained if its end is after its start.
+        const isSustained = note && note.end > note.start;
+        // A split is valid only if it's not on the very first cell of the note.
+        const isValidSplitPoint = note && dataCol > note.start;
+
+        if (isSustained && isValidSplitPoint) {
+            // We need to find the actual cell element to apply the class to.
+            // The `col` parameter might be the start of the long note, not the hovered cell.
+            const visualCol = dataCol - gridOffset;
+            const cell = document.querySelector(`[data-row='${row}'][data-col='${visualCol}']`);
+            if (cell) {
+                cell.classList.add('splice-hover');
+            }
+        }
     }
 }
 
 function handleMouseOut(e, row, col) {
+    let dataCol;
+    if (activeTool === 'splice' || activeTool === 'erase') {
+        const gridRect = gridContainer.getBoundingClientRect();
+        const mouseX = e.clientX - gridRect.left;
+        const visualCurrentCol = Math.floor(mouseX / effectiveColumnWidth);
+        dataCol = visualCurrentCol + gridOffset;
+    } else {
+        dataCol = col + gridOffset;
+    }
+
     if (activeTool === 'erase') {
-        const dataCol = col + gridOffset;
         const note = grid[row].find(note => dataCol >= note.start && dataCol <= note.end);
         if (note) {
             for (let c = note.start; c <= note.end; c++) {
@@ -573,6 +661,10 @@ function handleMouseOut(e, row, col) {
                 }
             }
         }
+    } else if (activeTool === 'splice') {
+        // Since we don't know which cell had the hover, we have to remove it from all of them.
+        const allSpliceHovers = document.querySelectorAll('.splice-hover');
+        allSpliceHovers.forEach(cell => cell.classList.remove('splice-hover'));
     }
 }
 
@@ -942,7 +1034,18 @@ function stopPlayback(clearGridFlag = false) {
 function handleMouseDown(e, row, col) {
     if (e.button !== 0) return; // Only left click
 
-    const dataCol = col + gridOffset;
+    let dataCol;
+    // For tools that can interact with the content of a long note (like splice),
+    // we must calculate the column from the mouse's X coordinate.
+    if (activeTool === 'splice') {
+        const gridRect = gridContainer.getBoundingClientRect();
+        const mouseX = e.clientX - gridRect.left;
+        const visualCurrentCol = Math.floor(mouseX / effectiveColumnWidth);
+        dataCol = visualCurrentCol + gridOffset;
+    } else {
+        // For other tools, the provided `col` is sufficient.
+        dataCol = col + gridOffset;
+    }
 
     if (activeTool === 'draw') {
         dragStartCol = dataCol;
@@ -953,6 +1056,8 @@ function handleMouseDown(e, row, col) {
         document.addEventListener('mouseup', handleMouseUp);
     } else if (activeTool === 'erase') {
         eraseNote(row, dataCol);
+    } else if (activeTool === 'splice') {
+        spliceNote(row, dataCol);
     } else if (activeTool === 'select') {
         clearSelection();
         selectionStartCol = dataCol;
@@ -1980,6 +2085,43 @@ function undo() {
     if (historyIndex > 0) {
         historyIndex--;
         restoreState(history[historyIndex]);
+    }
+}
+
+function spliceNote(row, col) {
+    // Find the note that contains the clicked column `col`.
+    const noteIndex = grid[row].findIndex(note => col >= note.start && col <= note.end);
+
+    if (noteIndex !== -1) {
+        const originalNote = grid[row][noteIndex];
+
+        // A split is only valid if it's a sustained note and not on the first cell.
+        const isSustained = originalNote.end > originalNote.start;
+        const isValidSplitPoint = col > originalNote.start;
+
+        if (isSustained && isValidSplitPoint) {
+            const originalNoteEnd = originalNote.end;
+
+            // The first part of the note ends at the column just before the click.
+            originalNote.end = col - 1;
+
+            // The second part of the note starts at the clicked column.
+            const newNote = {
+                start: col,
+                end: originalNoteEnd
+            };
+
+            // Insert the new note into the grid right after the original one.
+            grid[row].splice(noteIndex + 1, 0, newNote);
+
+            // Update the UI and save the state.
+            requestAnimationFrame(() => {
+                updateGridDisplay();
+                renderLayerList();
+                updateTotalDurationAndDisplay();
+                saveState();
+            });
+        }
     }
 }
 

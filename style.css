@@ -67,6 +67,7 @@ body {
     background-color: #c0c0c0;
     border: 1px solid #808080;
     cursor: pointer;
+    position: relative; /* This is required for the splice hover effect */
 }
 
 .grid-cell.bar-even.row-even {
