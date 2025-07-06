@@ -13,6 +13,7 @@ const octaveDownButton = document.getElementById('octave-down');
 const octaveUpButton = document.getElementById('octave-up');
 const saveMp3Button = document.getElementById('save-mp3');
 const saveProjectButton = document.getElementById('save-project');
+const newProjectButton = document.getElementById('new-project');
 const loadProjectButton = document.getElementById('load-project');
 const columnHighlight = document.getElementById('column-highlight');
 const bpmTextInput = document.getElementById('bpm-text-input');
@@ -70,6 +71,7 @@ let moveStartCol = -1;
 let moveStartRow = -1;
 let currentlySelectedNotes = [];
 let gridOffset = 0;
+let hasUnsavedChanges = false;
 let clipboard = null; // To store copied notes
 
 function formatTime(seconds) {
@@ -1674,6 +1676,49 @@ clearGridButton.addEventListener('click', () => {
     currentPlaybackTime = 0;
     updateTotalDurationAndDisplay();
     saveState();
+})
+
+function resetProject() {
+    stopPlayback();
+    layers.forEach(layer => {
+        if (layer.gainNode) {
+            layer.gainNode.disconnect();
+        }
+    });
+    layers = [];
+    activeLayerIndex = -1;
+    gridOffset = 0;
+    currentPlaybackTime = 0;
+    history = [];
+    historyIndex = -1;
+
+    // Reset master gain
+    masterGainNode.gain.value = 0.7; // Default master volume
+
+    // Create a single, fresh layer
+    addLayer(); 
+
+    // Reset UI elements
+    bpmInput.value = 120;
+    bpmValueSpan.textContent = '120';
+    loopCheckbox.checked = false;
+    barInput.value = 4;
+
+    updateTotalDurationAndDisplay();
+    renderBusMixer();
+    updateUndoRedoButtons();
+    hasUnsavedChanges = false;
+    currentProjectFileName = 'my_chiptuned_project.cht';
+}
+
+newProjectButton.addEventListener('click', () => {
+    if (hasUnsavedChanges) {
+        if (confirm('You have unsaved changes. Are you sure you want to start a new project?')) {
+            resetProject();
+        }
+    } else {
+        resetProject();
+    }
 });
 
 randomGridButton.addEventListener('click', () => {
@@ -1800,6 +1845,7 @@ async function saveProject() {
             const writable = await handle.createWritable();
             await writable.write(blob);
             await writable.close();
+            hasUnsavedChanges = false; // Reset flag after successful save
         } catch (err) {
             if (err.name !== 'AbortError') {
                 console.error('Error saving project using File System Access API:', err);
@@ -1820,6 +1866,7 @@ function fallbackSave(blob, fileName) {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    hasUnsavedChanges = false; // Reset flag after successful save
 }
 
 async function loadProject(data) {
@@ -1880,6 +1927,7 @@ async function loadProject(data) {
 
         updateGridDisplay(); // Update the visual grid based on loaded data
         renderBusMixer(); // Render the bus mixer after loading
+        hasUnsavedChanges = false; // Reset flag after successful load
     };
 
     try {
@@ -2070,6 +2118,7 @@ let history = [];
 let historyIndex = -1;
 
 function saveState() {
+    hasUnsavedChanges = true;
     const state = {
         layers: JSON.parse(JSON.stringify(layers)),
         activeLayerIndex: activeLayerIndex
