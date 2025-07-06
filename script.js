@@ -62,7 +62,10 @@ let dragStartCol = -1;
 let dragStartRow = -1;
 let currentNote = null; // Stores the note object being dragged/modified
 let anchorCol = -1;
-let activeTool = 'draw'; // New: To track the currently active tool, default to 'draw'
+let isExtendingSelection = false;
+let selectionDragData = []; // To store original state of selected notes during drag
+let draggedEdgeIsStart = false;
+let activeTool = 'draw';
 let currentProjectFileName = 'my_chiptuned_project.cht'; // New global variable to store the current project filename
 let totalSequenceDuration = 0; // Total duration of the sequence in seconds
 let playbackStartTime = 0; // AudioContext time when playback started
@@ -418,6 +421,28 @@ function toggleSingleNote(row, col) {
     });
 }
 
+function eraseSelectedNotes() {
+    if (currentlySelectedNotes.length === 0) return;
+
+    const notesToDelete = new Set(currentlySelectedNotes.map(item => item.noteRef));
+
+    for (let r = 0; r < grid.length; r++) {
+        // Important: Ensure the row exists in the grid before filtering
+        if (grid[r]) {
+            grid[r] = grid[r].filter(note => !notesToDelete.has(note));
+        }
+    }
+
+    clearSelection();
+    requestAnimationFrame(() => {
+        updateGridDisplay();
+        renderLayerList();
+        updateTotalDurationAndDisplay();
+        saveState();
+    });
+    console.log("Erased selected notes.");
+}
+
 function eraseNote(row, col) {
     const existingNoteIndex = grid[row].findIndex(note => col >= note.start && col <= note.end);
 
@@ -549,6 +574,10 @@ function createGrid() {
 }
 
 gridContainer.addEventListener('mousemove', (e) => {
+    // Always clear previous erase hover effects first
+    const allEraseHovers = document.querySelectorAll('.erase-hover');
+    allEraseHovers.forEach(cell => cell.classList.remove('erase-hover'));
+
     if (activeTool !== 'splice' && activeTool !== 'erase') {
         spliceLine.classList.add('hidden');
         return;
@@ -562,35 +591,63 @@ gridContainer.addEventListener('mousemove', (e) => {
     const row = Math.floor(mouseY / (gridContainer.offsetHeight / numRows));
     const dataCol = visualCol + gridOffset;
 
-    // Clear previous erase hover effects
-    const allEraseHovers = document.querySelectorAll('.erase-hover');
-    allEraseHovers.forEach(cell => cell.classList.remove('erase-hover'));
-
     if (row < 0 || row >= numRows || visualCol < 0 || visualCol >= numCols) {
         spliceLine.classList.add('hidden');
         return;
     }
 
-    const note = grid[row] ? grid[row].find(note => dataCol >= note.start && dataCol <= note.end) : null;
+    if (activeTool === 'erase') {
+        spliceLine.classList.add('hidden'); // Erase tool never shows splice line
+        if (currentlySelectedNotes.length > 0) {
+            // Check if the cursor is over any of the selected notes
+            const isHoveringOverSelection = currentlySelectedNotes.some(selected => {
+                const { noteRef, row: noteRow } = selected;
+                return row === noteRow && dataCol >= noteRef.start && dataCol <= noteRef.end;
+            });
 
-    if (activeTool === 'erase' && note) {
-        spliceLine.classList.add('hidden');
-        for (let c = note.start; c <= note.end; c++) {
-            const vCol = c - gridOffset;
-            if (vCol >= 0 && vCol < numCols) {
-                const cell = document.querySelector(`[data-row='${row}'][data-col='${vCol}']`);
-                if (cell) cell.classList.add('erase-hover');
+            if (isHoveringOverSelection) {
+                // If hovering over any part of the selection, highlight the whole selection
+                currentlySelectedNotes.forEach(selected => {
+                    const { noteRef, row } = selected;
+                    const noteExists = grid[row] && grid[row].includes(noteRef);
+                    if (noteExists) {
+                        for (let c = noteRef.start; c <= noteRef.end; c++) {
+                            const vCol = c - gridOffset;
+                            if (vCol >= 0 && vCol < numCols) {
+                                const cell = document.querySelector(`[data-row='${row}'][data-col='${vCol}']`);
+                                if (cell) cell.classList.add('erase-hover');
+                            }
+                        }
+                    }
+                });
+            }
+        } else {
+            // If no notes are selected, hover the single note under the cursor
+            const note = grid[row] ? grid[row].find(note => dataCol >= note.start && dataCol <= note.end) : null;
+            if (note) {
+                for (let c = note.start; c <= note.end; c++) {
+                    const vCol = c - gridOffset;
+                    if (vCol >= 0 && vCol < numCols) {
+                        const cell = document.querySelector(`[data-row='${row}'][data-col='${vCol}']`);
+                        if (cell) cell.classList.add('erase-hover');
+                    }
+                }
             }
         }
-    } else if (activeTool === 'splice' && note && dataCol > note.start) {
-        const cellHeight = gridContainer.offsetHeight / numRows;
-        const top = row * cellHeight;
-        const left = gridContainer.offsetLeft + (visualCol * effectiveColumnWidth);
+    } else if (activeTool === 'splice') {
+        const note = grid[row] ? grid[row].find(note => dataCol >= note.start && dataCol <= note.end) : null;
+        if (note && dataCol > note.start) {
+            const cellHeight = gridContainer.offsetHeight / numRows;
+            const top = row * cellHeight;
+            const left = gridContainer.offsetLeft + (visualCol * effectiveColumnWidth);
 
-        spliceLine.style.top = `${top}px`;
-        spliceLine.style.left = `${left}px`;
-        spliceLine.style.height = `${cellHeight}px`;
-        spliceLine.classList.remove('hidden');
+            spliceLine.style.top = `${top}px`;
+            spliceLine.style.left = `${left}px`;
+            spliceLine.style.height = `${cellHeight}px`;
+            spliceLine.classList.remove('hidden');
+        } else {
+            spliceLine.classList.add('hidden');
+        }
     } else {
         spliceLine.classList.add('hidden');
     }
@@ -982,14 +1039,60 @@ function handleMouseDown(e, row, col) {
     }
 
     if (activeTool === 'draw') {
-        dragStartCol = dataCol;
-        dragStartRow = row;
-        isDragging = false; // Reset drag state
+        const noteUnderCursor = grid[row] ? grid[row].find(note => dataCol >= note.start && dataCol <= note.end) : null;
+        const isClickOnSelection = noteUnderCursor && currentlySelectedNotes.some(selected => selected.noteRef === noteUnderCursor && selected.row === row);
 
+        if (isClickOnSelection) {
+            // --- Start extending the selection ---
+            isExtendingSelection = true;
+            dragStartCol = dataCol;
+
+            // Determine which edge is being dragged based on the initial click
+            const distToStart = Math.abs(dataCol - noteUnderCursor.start);
+            const distToEnd = Math.abs(dataCol - noteUnderCursor.end);
+            draggedEdgeIsStart = distToStart <= distToEnd;
+
+            selectionDragData = currentlySelectedNotes.map(selected => {
+                const { noteRef, row } = selected;
+                return {
+                    noteRef: noteRef,
+                    row: row,
+                    originalStart: noteRef.start,
+                    originalEnd: noteRef.end,
+                };
+            });
+        } else {
+            // --- Start drawing a new note ---
+            clearSelection(); // Clear selection if drawing a new note
+            isExtendingSelection = false;
+            dragStartCol = dataCol;
+            dragStartRow = row;
+        }
+
+        isDragging = false; // Reset drag state
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
+
     } else if (activeTool === 'erase') {
-        eraseNote(row, dataCol);
+        // Find if a note exists at the clicked location.
+        const noteUnderCursor = grid[row] ? grid[row].find(note => dataCol >= note.start && dataCol <= note.end) : null;
+
+        if (!noteUnderCursor) {
+            // Clicked on an empty cell, do nothing to prevent accidental erasure.
+            return;
+        }
+
+        // Check if the clicked note is part of the current selection.
+        const isClickOnSelection = currentlySelectedNotes.some(selected => selected.noteRef === noteUnderCursor && selected.row === row);
+
+        if (isClickOnSelection) {
+            // Clicked on a selected note, erase the entire selection.
+            eraseSelectedNotes();
+        } else {
+            // Clicked on a non-selected note. Erase just that note and clear the selection.
+            clearSelection();
+            eraseNote(row, dataCol);
+        }
     } else if (activeTool === 'splice') {
         spliceNote(row, dataCol);
     } else if (activeTool === 'select') {
@@ -1045,7 +1148,7 @@ function handleMouseDown(e, row, col) {
 
 function handleMouseMove(e) {
     const targetCell = e.target.closest('.grid-cell');
-    if (!targetCell || parseInt(targetCell.dataset.row) !== dragStartRow) return;
+    if (!targetCell) return;
 
     const gridRect = gridContainer.getBoundingClientRect();
     const mouseX = e.clientX - gridRect.left;
@@ -1053,72 +1156,140 @@ function handleMouseMove(e) {
     visualCurrentCol = Math.max(0, Math.min(numCols - 1, visualCurrentCol));
     const currentCol = visualCurrentCol + gridOffset;
 
-    // Only start a drag if the mouse has moved to a different column.
+    // A drag operation officially starts only when the mouse has moved to a different column.
     if (!isDragging && currentCol !== dragStartCol) {
         isDragging = true;
-        const existingNote = grid[dragStartRow].find(note => dragStartCol >= note.start && dragStartCol <= note.end);
-        if (existingNote) {
-            currentNote = existingNote;
-            const distToStart = Math.abs(dragStartCol - currentNote.start);
-            const distToEnd = Math.abs(dragStartCol - currentNote.end);
-            anchorCol = (distToStart <= distToEnd) ? currentNote.end : currentNote.start;
-        } else {
-            currentNote = { start: dragStartCol, end: dragStartCol };
-            grid[dragStartRow].push(currentNote);
-            anchorCol = dragStartCol;
+
+        // If we are NOT extending a selection, it means we are starting a brand new note.
+        // We need to create the note object itself on the first drag movement.
+        if (!isExtendingSelection) {
+            const existingNote = grid[dragStartRow].find(note => dragStartCol >= note.start && dragStartCol <= note.end);
+            if (existingNote) {
+                // This case is a safeguard; mousedown should have cleared selections.
+                currentNote = existingNote;
+                anchorCol = (dragStartCol === existingNote.start) ? existingNote.end : existingNote.start;
+            } else {
+                // Create the new note that will be resized as the user drags.
+                currentNote = { start: dragStartCol, end: dragStartCol };
+                grid[dragStartRow].push(currentNote);
+                anchorCol = dragStartCol;
+            }
         }
     }
 
+    // Do not proceed with any drawing logic until the drag has officially started.
     if (!isDragging) return;
 
-    if (!currentNote) return;
+    // --- Main Drag Logic ---
+    if (isExtendingSelection) {
+        const dragOffset = currentCol - dragStartCol;
 
-    let proposedStart = Math.min(anchorCol, currentCol);
-    let proposedEnd = Math.max(anchorCol, currentCol);
+        selectionDragData.forEach(data => {
+            let proposedStart, proposedEnd;
 
-    const otherNotesInRow = grid[dragStartRow].filter(note => note !== currentNote);
-    for (const otherNote of otherNotesInRow) {
-        if (proposedStart <= otherNote.end && proposedEnd >= otherNote.start) {
-            if (currentCol > anchorCol) {
-                proposedEnd = otherNote.start - 1;
-            } else {
-                proposedStart = otherNote.end + 1;
+            // Determine the new start/end based on which edge was grabbed.
+            if (draggedEdgeIsStart) {
+                proposedStart = data.originalStart + dragOffset;
+                proposedEnd = data.originalEnd;
+            } else { // Dragging the end edge.
+                proposedStart = data.originalStart;
+                proposedEnd = data.originalEnd + dragOffset;
             }
-            break;
-        }
-    }
 
-    currentNote.start = proposedStart;
-    currentNote.end = proposedEnd;
+            // Prevent the note from inverting (start becoming greater than end).
+            if (proposedStart > proposedEnd) {
+                // Swap them back, effectively clamping the drag at the anchor point.
+                [proposedStart, proposedEnd] = [proposedEnd, proposedStart];
+            }
+
+            // Check for collisions with any notes NOT in the current selection.
+            const otherNotesInRow = grid[data.row].filter(note => 
+                note !== data.noteRef && 
+                !selectionDragData.some(s => s.noteRef === note)
+            );
+
+            for (const otherNote of otherNotesInRow) {
+                if (proposedStart <= otherNote.end && proposedEnd >= otherNote.start) {
+                    // Collision detected. Clamp the note to the edge of the obstacle.
+                    if (draggedEdgeIsStart) {
+                        proposedStart = otherNote.end + 1;
+                    } else {
+                        proposedEnd = otherNote.start - 1;
+                    }
+                    break; 
+                }
+            }
+
+            // Apply the final, validated positions to the actual note object.
+            data.noteRef.start = proposedStart;
+            data.noteRef.end = proposedEnd;
+        });
+
+    } else {
+        // This is the simpler logic for drawing a single, new note.
+        if (!currentNote || parseInt(targetCell.dataset.row) !== dragStartRow) return;
+
+        let proposedStart = Math.min(anchorCol, currentCol);
+        let proposedEnd = Math.max(anchorCol, currentCol);
+
+        const otherNotesInRow = grid[dragStartRow].filter(note => note !== currentNote);
+        for (const otherNote of otherNotesInRow) {
+            if (proposedStart <= otherNote.end && proposedEnd >= otherNote.start) {
+                if (currentCol > anchorCol) {
+                    proposedEnd = otherNote.start - 1;
+                } else {
+                    proposedStart = otherNote.end + 1;
+                }
+                break;
+            }
+        }
+
+        currentNote.start = proposedStart;
+        currentNote.end = proposedEnd;
+    }
 
     requestAnimationFrame(() => updateGridDisplay());
 }
 
 function handleMouseUp() {
-    // Stop listening for mouse movements.
     document.removeEventListener('mousemove', handleMouseMove);
     document.removeEventListener('mouseup', handleMouseUp);
 
     if (!isDragging) {
-        // If the mouse never moved, it was a simple click.
-        const dataCol = dragStartCol;
-        toggleSingleNote(dragStartRow, dataCol);
-    } else if (currentNote && currentNote.start > currentNote.end) {
-        // If the drag ended with the note being invalid (e.g., squashed to zero size by a collision), remove it.
-        const noteIndex = grid[dragStartRow].indexOf(currentNote);
-        if (noteIndex > -1) {
-            grid[dragStartRow].splice(noteIndex, 1);
+        // This was a simple click, not a drag.
+        if (!isExtendingSelection) {
+            // If not extending, it was a click to create/delete a single-cell note.
+            toggleSingleNote(dragStartRow, dragStartCol);
         }
+        // If it was a click on a selection, we do nothing, leaving it selected.
+    } else {
+        // This was a drag operation.
+        // Final cleanup: check for any notes that became invalid (e.g., squashed to zero size by a collision) and remove them.
+        const notesToProcess = isExtendingSelection ? selectionDragData.map(d => d.noteRef) : [currentNote];
+        notesToProcess.forEach(note => {
+            if (note && note.start > note.end) {
+                for (const row of grid) {
+                    const noteIndex = row.indexOf(note);
+                    if (noteIndex > -1) {
+                        row.splice(noteIndex, 1);
+                        break;
+                    }
+                }
+            }
+        });
     }
 
-    // Reset all state variables for the next drag operation.
+    // Reset all temporary state variables for the next user action.
     isDragging = false;
     dragStartCol = -1;
     dragStartRow = -1;
     currentNote = null;
     anchorCol = -1;
+    isExtendingSelection = false;
+    selectionDragData = [];
+    draggedEdgeIsStart = false;
 
-    // Perform a final render to commit the changes to the display.
+    // Commit the final state to the display and save.
     requestAnimationFrame(() => {
         updateGridDisplay();
         renderLayerList();
