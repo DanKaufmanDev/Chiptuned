@@ -1179,27 +1179,38 @@ function handleMouseMove(e) {
         selectionDragData.forEach(data => {
             const { noteRef, originalStart, originalEnd, row } = data;
 
-            const otherNotesInRow = grid[row].filter(note => 
-                note !== noteRef && 
-                !selectionDragData.some(s => s.noteRef === note)
-            );
+            // All notes in the row that are NOT the current note being processed
+            const otherNotesInRow = grid[row].filter(note => note !== noteRef);
 
             const anchorCol = draggedEdgeIsStart ? originalEnd : originalStart;
             const originalMovingCol = draggedEdgeIsStart ? originalStart : originalEnd;
             let proposedMovingCol = originalMovingCol + dragOffset;
 
-            if (proposedMovingCol > anchorCol) {
-                const obstacles = otherNotesInRow.filter(n => n.start > anchorCol);
+            if (proposedMovingCol > anchorCol) { // Dragging right
+                // Find the closest obstacle to the right
                 let boundary = Infinity;
-                if (obstacles.length > 0) {
-                    boundary = Math.min(...obstacles.map(n => n.start));
+                for (const otherNote of otherNotesInRow) {
+                    // Is this other note part of the selection?
+                    const otherNoteDragData = selectionDragData.find(s => s.noteRef === otherNote);
+                    const otherNoteStart = otherNoteDragData ? otherNoteDragData.originalStart : otherNote.start;
+
+                    if (otherNoteStart > anchorCol) { // Obstacle is to the right
+                        boundary = Math.min(boundary, otherNoteStart);
+                    }
                 }
                 proposedMovingCol = Math.min(proposedMovingCol, boundary - 1);
-            } else if (proposedMovingCol < anchorCol) {
-                const obstacles = otherNotesInRow.filter(n => n.end < anchorCol);
+
+            } else if (proposedMovingCol < anchorCol) { // Dragging left
+                // Find the closest obstacle to the left
                 let boundary = -Infinity;
-                if (obstacles.length > 0) {
-                    boundary = Math.max(...obstacles.map(n => n.end));
+                for (const otherNote of otherNotesInRow) {
+                    // Is this other note part of the selection?
+                    const otherNoteDragData = selectionDragData.find(s => s.noteRef === otherNote);
+                    const otherNoteEnd = otherNoteDragData ? otherNoteDragData.originalEnd : otherNote.end;
+
+                    if (otherNoteEnd < anchorCol) { // Obstacle is to the left
+                        boundary = Math.max(boundary, otherNoteEnd);
+                    }
                 }
                 proposedMovingCol = Math.max(proposedMovingCol, boundary + 1);
             }
@@ -1207,7 +1218,6 @@ function handleMouseMove(e) {
             noteRef.start = Math.min(proposedMovingCol, anchorCol);
             noteRef.end = Math.max(proposedMovingCol, anchorCol);
         });
-
     } else {
         if (!currentNote || parseInt(targetCell.dataset.row) !== dragStartRow) return;
 
