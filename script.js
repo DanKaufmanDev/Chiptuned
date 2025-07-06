@@ -1156,20 +1156,14 @@ function handleMouseMove(e) {
     visualCurrentCol = Math.max(0, Math.min(numCols - 1, visualCurrentCol));
     const currentCol = visualCurrentCol + gridOffset;
 
-    // A drag operation officially starts only when the mouse has moved to a different column.
     if (!isDragging && currentCol !== dragStartCol) {
         isDragging = true;
-
-        // If we are NOT extending a selection, it means we are starting a brand new note.
-        // We need to create the note object itself on the first drag movement.
         if (!isExtendingSelection) {
             const existingNote = grid[dragStartRow].find(note => dragStartCol >= note.start && dragStartCol <= note.end);
             if (existingNote) {
-                // This case is a safeguard; mousedown should have cleared selections.
                 currentNote = existingNote;
                 anchorCol = (dragStartCol === existingNote.start) ? existingNote.end : existingNote.start;
             } else {
-                // Create the new note that will be resized as the user drags.
                 currentNote = { start: dragStartCol, end: dragStartCol };
                 grid[dragStartRow].push(currentNote);
                 anchorCol = dragStartCol;
@@ -1177,56 +1171,44 @@ function handleMouseMove(e) {
         }
     }
 
-    // Do not proceed with any drawing logic until the drag has officially started.
     if (!isDragging) return;
 
-    // --- Main Drag Logic ---
     if (isExtendingSelection) {
         const dragOffset = currentCol - dragStartCol;
 
         selectionDragData.forEach(data => {
-            let proposedStart, proposedEnd;
+            const { noteRef, originalStart, originalEnd, row } = data;
 
-            // Determine the new start/end based on which edge was grabbed.
-            if (draggedEdgeIsStart) {
-                proposedStart = data.originalStart + dragOffset;
-                proposedEnd = data.originalEnd;
-            } else { // Dragging the end edge.
-                proposedStart = data.originalStart;
-                proposedEnd = data.originalEnd + dragOffset;
-            }
-
-            // Prevent the note from inverting (start becoming greater than end).
-            if (proposedStart > proposedEnd) {
-                // Swap them back, effectively clamping the drag at the anchor point.
-                [proposedStart, proposedEnd] = [proposedEnd, proposedStart];
-            }
-
-            // Check for collisions with any notes NOT in the current selection.
-            const otherNotesInRow = grid[data.row].filter(note => 
-                note !== data.noteRef && 
+            const otherNotesInRow = grid[row].filter(note => 
+                note !== noteRef && 
                 !selectionDragData.some(s => s.noteRef === note)
             );
 
-            for (const otherNote of otherNotesInRow) {
-                if (proposedStart <= otherNote.end && proposedEnd >= otherNote.start) {
-                    // Collision detected. Clamp the note to the edge of the obstacle.
-                    if (draggedEdgeIsStart) {
-                        proposedStart = otherNote.end + 1;
-                    } else {
-                        proposedEnd = otherNote.start - 1;
-                    }
-                    break; 
+            const anchorCol = draggedEdgeIsStart ? originalEnd : originalStart;
+            const originalMovingCol = draggedEdgeIsStart ? originalStart : originalEnd;
+            let proposedMovingCol = originalMovingCol + dragOffset;
+
+            if (proposedMovingCol > anchorCol) {
+                const obstacles = otherNotesInRow.filter(n => n.start > anchorCol);
+                let boundary = Infinity;
+                if (obstacles.length > 0) {
+                    boundary = Math.min(...obstacles.map(n => n.start));
                 }
+                proposedMovingCol = Math.min(proposedMovingCol, boundary - 1);
+            } else if (proposedMovingCol < anchorCol) {
+                const obstacles = otherNotesInRow.filter(n => n.end < anchorCol);
+                let boundary = -Infinity;
+                if (obstacles.length > 0) {
+                    boundary = Math.max(...obstacles.map(n => n.end));
+                }
+                proposedMovingCol = Math.max(proposedMovingCol, boundary + 1);
             }
 
-            // Apply the final, validated positions to the actual note object.
-            data.noteRef.start = proposedStart;
-            data.noteRef.end = proposedEnd;
+            noteRef.start = Math.min(proposedMovingCol, anchorCol);
+            noteRef.end = Math.max(proposedMovingCol, anchorCol);
         });
 
     } else {
-        // This is the simpler logic for drawing a single, new note.
         if (!currentNote || parseInt(targetCell.dataset.row) !== dragStartRow) return;
 
         let proposedStart = Math.min(anchorCol, currentCol);
