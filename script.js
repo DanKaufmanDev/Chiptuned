@@ -35,7 +35,7 @@ const sequencerPrevButton = document.getElementById('sequencer-prev');
 const sequencerNextButton = document.getElementById('sequencer-next');
 
 const waveforms = ['square', 'sine', 'sawtooth', 'triangle'];
-const instruments = ['piano', 'organ', 'synth_lead', 'bass', 'flute', 'trumpet', 'strings'];
+const instruments = ['piano', 'organ', 'synth lead', 'bass', 'flute', 'trumpet', 'strings'];
 const sfx = ['coin', 'jump', 'laser', 'explosion', 'blip', 'powerup', 'hit'];
 
 let layers = [];
@@ -2569,59 +2569,53 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     renderToolButtons(); // Initial render of tool buttons
 
-    const toolButtons = document.querySelectorAll('#sequencer-tools .retro-button');
-    toolButtons.forEach(button => {
-        const keybind = button.dataset.keybind;
-        if (keybind) {
-            const popup = document.createElement('div');
-            popup.classList.add('keybind-popup');
-            popup.textContent = keybind;
-            button.style.position = 'relative'; // Needed for absolute positioning of the popup
-            button.appendChild(popup);
-        }
-    });
-
-    // Add keybind popups for Undo/Redo
+    // --- Keybind Popups ---
     const isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
     const modifier = isMac ? 'Cmd' : 'Ctrl';
 
-    const undoBtn = document.getElementById('tool-undo');
-    const redoBtn = document.getElementById('tool-redo');
+    function createDelayedPopup(button, text) {
+        let timeoutId;
+        button.style.position = 'relative'; // Needed for absolute positioning
 
-    const undoPopup = document.createElement('div');
-    undoPopup.classList.add('keybind-popup');
-    undoPopup.textContent = `${modifier}+Z`;
-    undoBtn.style.position = 'relative';
-    undoBtn.appendChild(undoPopup);
+        button.addEventListener('mouseenter', () => {
+            timeoutId = setTimeout(() => {
+                // Prevent multiple popups
+                if (button.querySelector('.keybind-popup')) return;
 
-    const redoPopup = document.createElement('div');
-    redoPopup.classList.add('keybind-popup');
-    redoPopup.textContent = `${modifier}+Shift+Z`;
-    redoBtn.style.position = 'relative';
-    redoBtn.appendChild(redoPopup);
+                const popup = document.createElement('div');
+                popup.classList.add('keybind-popup');
+                popup.textContent = text;
+                button.appendChild(popup);
+            }, 500); // 500ms delay
+        });
 
-    // Add keybind popups for Cut/Copy/Paste
-    const cutBtn = document.getElementById('tool-cut');
-    const copyBtn = document.getElementById('tool-copy');
-    const pasteBtn = document.getElementById('tool-paste');
+        button.addEventListener('mouseleave', () => {
+            clearTimeout(timeoutId);
+            const popup = button.querySelector('.keybind-popup');
+            if (popup) {
+                popup.remove();
+            }
+        });
+    }
 
-    const cutPopup = document.createElement('div');
-    cutPopup.classList.add('keybind-popup');
-    cutPopup.textContent = `${modifier}+X`;
-    cutBtn.style.position = 'relative';
-    cutBtn.appendChild(cutPopup);
+    // Tool buttons
+    const toolButtons = document.querySelectorAll('#sequencer-tools .retro-button[data-keybind]');
+    toolButtons.forEach(button => {
+        const keybind = button.dataset.keybind;
+        if (keybind) {
+            createDelayedPopup(button, keybind);
+        }
+    });
 
-    const copyPopup = document.createElement('div');
-    copyPopup.classList.add('keybind-popup');
-    copyPopup.textContent = `${modifier}+C`;
-    copyBtn.style.position = 'relative';
-    copyBtn.appendChild(copyPopup);
+    // Undo/Redo buttons
+    createDelayedPopup(document.getElementById('tool-undo'), `${modifier}+Z`);
+    createDelayedPopup(document.getElementById('tool-redo'), `${modifier}+Shift+Z`);
 
-    const pastePopup = document.createElement('div');
-    pastePopup.classList.add('keybind-popup');
-    pastePopup.textContent = `${modifier}+V`;
-    pasteBtn.style.position = 'relative';
-    pasteBtn.appendChild(pastePopup);
+    // Cut/Copy/Paste buttons
+    createDelayedPopup(document.getElementById('tool-cut'), `${modifier}+X`);
+    createDelayedPopup(document.getElementById('tool-copy'), `${modifier}+C`);
+    createDelayedPopup(document.getElementById('tool-paste'), `${modifier}+V`);
+""
 
     // New: Add event listener for the grid wrapper scroll
     const gridWrapper = document.querySelector('.grid-wrapper');
