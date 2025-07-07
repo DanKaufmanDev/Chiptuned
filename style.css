@@ -219,7 +219,7 @@ body {
     overflow-y: auto;
     padding-right: 0.5rem; /* Add padding for scrollbar spacing */
     min-height: 0;
-    max-height: calc(100vh - 15rem);
+    max-height: calc(100vh - 13rem);
 }
 
 /* Custom Scrollbar for Webkit browsers */
