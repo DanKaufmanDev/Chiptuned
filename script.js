@@ -1680,6 +1680,7 @@ function renderBusMixer() {
     });
     masterVolumeSlider.addEventListener('change', (e) => {
         masterLabel.textContent = 'Master';
+        saveState();
     });
 
     // Track Buses
@@ -1715,6 +1716,7 @@ function renderBusMixer() {
         });
         trackVolumeSlider.addEventListener('change', (e) => {
             trackLabel.textContent = layer.name;
+            saveState();
         });
     });
 }
@@ -2374,7 +2376,8 @@ function saveState() {
     hasUnsavedChanges = true;
     const state = {
         layers: JSON.parse(JSON.stringify(layers)),
-        activeLayerIndex: activeLayerIndex
+        activeLayerIndex: activeLayerIndex,
+        masterGain: masterGainNode.gain.value
     };
 
     history.splice(historyIndex + 1);
@@ -2437,6 +2440,7 @@ function redo() {
 function restoreState(state) {
     layers = JSON.parse(JSON.stringify(state.layers));
     activeLayerIndex = state.activeLayerIndex;
+    masterGainNode.gain.value = state.masterGain;
 
     // Re-create gain nodes after loading the state
     layers.forEach(layer => {
