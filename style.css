@@ -475,6 +475,13 @@ body {
     font-size: 2.5rem;
     padding-top: 1rem;
     padding-bottom: 1rem;
-    line-height: 0.5;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sequencer-arrow-button p {
+    line-height: 0;
+    position: relative;
+    bottom: 5px;
 }
