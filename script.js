@@ -2581,6 +2581,48 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Add keybind popups for Undo/Redo
+    const isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
+    const modifier = isMac ? 'Cmd' : 'Ctrl';
+
+    const undoBtn = document.getElementById('tool-undo');
+    const redoBtn = document.getElementById('tool-redo');
+
+    const undoPopup = document.createElement('div');
+    undoPopup.classList.add('keybind-popup');
+    undoPopup.textContent = `${modifier}+Z`;
+    undoBtn.style.position = 'relative';
+    undoBtn.appendChild(undoPopup);
+
+    const redoPopup = document.createElement('div');
+    redoPopup.classList.add('keybind-popup');
+    redoPopup.textContent = `${modifier}+Shift+Z`;
+    redoBtn.style.position = 'relative';
+    redoBtn.appendChild(redoPopup);
+
+    // Add keybind popups for Cut/Copy/Paste
+    const cutBtn = document.getElementById('tool-cut');
+    const copyBtn = document.getElementById('tool-copy');
+    const pasteBtn = document.getElementById('tool-paste');
+
+    const cutPopup = document.createElement('div');
+    cutPopup.classList.add('keybind-popup');
+    cutPopup.textContent = `${modifier}+X`;
+    cutBtn.style.position = 'relative';
+    cutBtn.appendChild(cutPopup);
+
+    const copyPopup = document.createElement('div');
+    copyPopup.classList.add('keybind-popup');
+    copyPopup.textContent = `${modifier}+C`;
+    copyBtn.style.position = 'relative';
+    copyBtn.appendChild(copyPopup);
+
+    const pastePopup = document.createElement('div');
+    pastePopup.classList.add('keybind-popup');
+    pastePopup.textContent = `${modifier}+V`;
+    pasteBtn.style.position = 'relative';
+    pasteBtn.appendChild(pastePopup);
+
     // New: Add event listener for the grid wrapper scroll
     const gridWrapper = document.querySelector('.grid-wrapper');
     if (gridWrapper) {
@@ -2626,16 +2668,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             switch (key) {
-                case 'q':
+                case 'd':
                     newTool = 'draw';
                     break;
-                case 'w':
-                    newTool = 'erase';
+                case 'x':
+                    newTool = 'splice';
                     break;
                 case 'e':
+                    newTool = 'erase';
+                    break;
+                case 's':
                     newTool = 'select';
                     break;
-                case 'r':
+                case 'g':
                     newTool = 'move';
                     break;
             }
