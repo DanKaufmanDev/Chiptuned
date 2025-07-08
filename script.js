@@ -539,9 +539,10 @@ function createGrid() {
 
     // Explicitly set grid properties for gridContainer
     gridContainer.style.display = 'grid';
-    gridContainer.style.gridTemplateRows = `repeat(${numRows}, 40px)`; // Explicitly define row height
-    gridContainer.style.gridTemplateColumns = `repeat(${numCols}, 40px)`; // Explicitly define column width
-    gridContainer.style.minWidth = `${numCols * 40 + (numCols - 1) * 2}px`; // Calculate min-width based on cells and gaps
+    gridContainer.style.gridTemplateRows = `repeat(${numRows}, 1fr)`; // Use fractional units
+    gridContainer.style.gridTemplateColumns = `repeat(${numCols}, 1fr)`; // Use fractional units
+    gridContainer.style.width = '100%'; // Take full width
+    gridContainer.style.height = '100%'; // Take full height
 
     // Explicitly set grid properties for noteLabelsContainer
     noteLabelsContainer.style.display = 'grid';
@@ -560,17 +561,20 @@ function createGrid() {
     // After creating cells, update their active state based on the grid data
     requestAnimationFrame(() => updateGridDisplay());
 
-    // Calculate column width and offset once
+    updateColumnDimensions();
+    updateGridForBarSystem();
+}
+
+function updateColumnDimensions() {
     const firstCell = gridContainer.children[0];
     if (firstCell) {
         const cellActualWidth = firstCell.offsetWidth;
         const computedStyle = window.getComputedStyle(gridContainer);
         gridColumnGap = parseFloat(computedStyle.getPropertyValue('grid-column-gap'));
         effectiveColumnWidth = cellActualWidth + gridColumnGap;
-        gridContainerOffsetLeft = gridContainer.offsetLeft; // Get the actual offset of the grid container
-        columnHighlightWidth = cellActualWidth; // Set the highlighter width to the cell width
+        gridContainerOffsetLeft = gridContainer.getBoundingClientRect().left;
+        columnHighlightWidth = cellActualWidth;
     }
-    updateGridForBarSystem();
 }
 
 gridContainer.addEventListener('mousemove', (e) => {
@@ -895,7 +899,6 @@ function scheduler() {
             currentColumn = 0;
             nextNoteTime = audioContext.currentTime; // Reset nextNoteTime to current audio context time
             playbackStartTime = audioContext.currentTime;
-            loopHappened = true;
             // Stop any currently playing notes to prevent lingering sounds
             playingNodes.forEach(node => {
                 if (node.oscillator) node.oscillator.stop(0);
@@ -915,6 +918,8 @@ function scheduler() {
 
 let animationFrameId = null;
 
+let lastPlaybackTime = 0;
+
 function draw() {
     if (!isPlaying) {
         if (animationFrameId) {
@@ -924,22 +929,21 @@ function draw() {
         return;
     }
 
-    if (loopHappened) {
-        gridOffset = 0;
+    currentPlaybackTime = audioContext.currentTime - playbackStartTime;
+
+    // --- Loop Detection ---
+    // If the current time is less than the last recorded time, a loop has occurred.
+    if (currentPlaybackTime < lastPlaybackTime) {
+        gridOffset = 0; // Reset scroll to the beginning
         renderActiveLayer();
         renderLayerList();
-        loopHappened = false;
     }
+    lastPlaybackTime = currentPlaybackTime;
 
-    currentPlaybackTime = audioContext.currentTime - playbackStartTime;
     const secondsPerBeat = 60.0 / parseFloat(bpmInput.value);
-    const continuousCol = currentPlaybackTime / secondsPerBeat;
-    const currentWholeColumn = Math.floor(continuousCol);
+    const currentWholeColumn = Math.floor(currentPlaybackTime / secondsPerBeat);
 
-    // The loop handling is now primarily in the scheduler function
-    // This ensures the UI updates smoothly even if the audio loop resets
     if (currentPlaybackTime >= totalSequenceDuration && !loopCheckbox.checked) {
-        // If not looping and reached end, stop playback
         stopPlayback();
         return;
     }
@@ -1006,6 +1010,7 @@ function stopPlayback(clearGridFlag = false) {
 
     columnHighlight.classList.remove('block');
     columnHighlight.classList.add('hidden');
+    updateColumnDimensions();
 
     const highlightedCells = document.querySelectorAll('.grid-cell.highlighted');
     highlightedCells.forEach(cell => cell.classList.remove('highlighted'));
@@ -1632,30 +1637,47 @@ globalPlayPauseButton.addEventListener('click', () => {
     }
 });
 
-function highlightColumn(col) { // col is continuous absolute data column
-    if (effectiveColumnWidth === 0) return;
+function highlightColumn(col) { // col is the absolute data column based on playback time
+    if (effectiveColumnWidth === 0 || !gridContainer) return;
 
     const visualCol = col - gridOffset;
 
-    // Hide highlight if it's not in the current view
     if (visualCol < 0 || visualCol >= numCols) {
         columnHighlight.classList.add('hidden');
         columnHighlight.classList.remove('block');
         return;
     }
 
-    const gridWrapperScrollLeft = Math.round(gridContainer.parentElement.scrollLeft);
+    // The highlighter is a sibling of gridContainer. Its position is relative to the parent.
+    const highlightLeft = gridContainer.offsetLeft + (visualCol * effectiveColumnWidth);
 
-    // The left position should be based on the continuous visual column
-    const highlightLeft = Math.round(gridContainerOffsetLeft) + Math.round(visualCol * effectiveColumnWidth) - gridWrapperScrollLeft;
-
-    columnHighlight.style.width = `${Math.round(columnHighlightWidth)}px`;
+    columnHighlight.style.width = `${columnHighlightWidth}px`;
     columnHighlight.style.left = `${highlightLeft}px`;
-    columnHighlight.style.height = `auto`;
-    columnHighlight.style.top = `0`;
+    columnHighlight.style.top = '0px';
+    columnHighlight.style.height = `${gridContainer.offsetHeight}px`;
     columnHighlight.classList.remove('hidden');
     columnHighlight.classList.add('block');
 }
+
+function updateColumnDimensions() {
+    if (!gridContainer || gridContainer.children.length === 0) {
+        effectiveColumnWidth = 0;
+        columnHighlightWidth = 0;
+        return;
+    }
+
+    const gridRect = gridContainer.getBoundingClientRect();
+    const firstCellRect = gridContainer.children[0].getBoundingClientRect();
+
+    effectiveColumnWidth = gridRect.width / numCols;
+    columnHighlightWidth = firstCellRect.width + 2; // Make it slightly wider
+}
+
+window.addEventListener('resize', () => {
+    updateColumnDimensions();
+    // Re-highlighting during playback is handled by the 'draw' animation loop,
+    // which will naturally pick up the new dimensions on the next frame.
+});
 
 function renderBusMixer() {
     busMixerContainer.innerHTML = '';
@@ -1803,6 +1825,7 @@ clearGridButton.addEventListener('click', () => {
     renderLayerList(); // Re-render the layer list
     columnHighlight.classList.remove('block');
     columnHighlight.classList.add('hidden');
+    updateColumnDimensions(); // Recalculate dimensions after clearing grid
     currentPlaybackTime = 0;
     updateTotalDurationAndDisplay();
     saveState();

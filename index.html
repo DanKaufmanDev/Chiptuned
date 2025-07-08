@@ -9,12 +9,16 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-black flex items-center justify-center min-h-screen">
+    <div class="mobile-message">
+        <p class="text-2xl font-bold">This is a desktop application.</p>
+        <p>Please open on a desktop to continue.</p>
+    </div>
     <div id="app-container">
         <div id="aspect-lock">
             <!-- Application Container -->
-            <div id="main-container" class="flex flex-row p-4 justify-center">
+            <div id="main-container" class="flex flex-row justify-center h-full w-full">
             <!-- Sounds Panel -->
-            <div id="sounds-container" class="retro-container flex flex-col flex-shrink-0">
+            <div id="sounds-container" class="retro-container flex flex-col flex-shrink-0 w-64 p-4">
                 <h2 class="text-2xl font-bold mb-4 text-white flex justify-center">Sounds</h2>
                 <div id="sounds-panel" class="flex flex-col items-center">
                     <!-- Sound selection buttons will be rendered here -->
@@ -33,7 +37,7 @@
 
                 <!-- Main App Window -->
                 <div id="main-app-window" class="p-8 shadow-lg retro-container flex-grow flex flex-col">
-                    <h1 class="text-4xl font-bold mb-8 text-white flex justify-center">Chiptuned</h1>
+                    
                     <div class="controls mb-8 flex flex-row items-start justify-center">
                         <!-- Tool Selection -->
                         <div id="sequencer-tools" class="flex flex-row gap-2">
@@ -69,8 +73,8 @@
                         </div>
                         <!-- Sequencer Grid -->
                         <div class="grid-wrapper relative flex mb-6 overflow-x-hidden" style="overflow-y: hidden;">
-                            <div id="note-labels" class="grid grid-rows-8 gap-0.5 mr-2 w-max flex-shrink-0"></div>
-                            <div id="grid-container" class="grid grid-rows-8 grid-cols-32 gap-0.5 flex-shrink-0" style="display: grid; grid-gap: 2px;"></div>
+                            <div id="note-labels" class="grid grid-rows-8 gap-0.5"></div>
+                            <div id="grid-container" class="grid grid-rows-8 grid-cols-32 gap-0.5" style="display: grid; grid-gap: 2px;"></div>
                             <div id="splice-line" class="absolute top-0 bottom-0 hidden" style="background-color: #800000; width: 1px; pointer-events: none;"></div>
                             <div id="selection-rectangle" class="absolute hidden"></div>
                             <div id="column-highlight" class="absolute top-0 bottom-0 bg-red-500 opacity-50 pointer-events-none hidden"></div>
@@ -84,7 +88,7 @@
                     </div>
                 </div>
                 <!-- Bottom Window for Audio Bus Mixer -->
-                <div id="bottom-window" class="p-4 shadow-lg retro-container flex-shrink-0">
+                <div id="bottom-window" class="p-4 shadow-lg retro-container">
                     <div id="bus-mixer-container" class="flex flex-row justify-start items-center">
                         <!-- Buses will be dynamically added here -->
                     </div>

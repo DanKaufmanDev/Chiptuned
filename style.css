@@ -9,34 +9,106 @@
     --active-cell-bg: #008080;
 }
 
-html,
+html {
+    font-size: 1vmin;
+}
+
 body {
     height: 100%;
     margin: 0;
     padding: 0;
     overflow: hidden;
-}
-
-body {
     font-family: 'Press Start 2P', cursive;
-    background-color: #008080;
+    background-color: #000;
     color: #ffffff;
     box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
 }
 
-.app-container {
+#app-container {
     display: flex;
-    flex-direction: flex-column;
+    flex-direction: row;
     width: 100%;
     height: 100%;
     overflow: hidden;
 }
-.aspect-lock {
+
+#aspect-lock {
     aspect-ratio: 16 / 9;
     position: relative;
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    background-color: #008080;
 }
+
+#main-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    
+}
+
+#sounds-container, #layer-container{
+    flex-shrink: 0; /* Prevent shrinking */
+}
+
+#layer-container {
+    display: flex;
+    width: fit-content;
+    max-width: 12.5em;
+    min-width: 12.5em
+}
+
+#top-window {
+    flex-shrink: 0; /* Prevent shrinking */
+}
+
+#main-app-window {
+    min-height: 0; /* Allow shrinking below content size */
+    display: flex; /* Added */
+    flex-direction: column; /* Added */
+}
+
+.sequencer {
+    flex-grow: 1; /* Allow sequencer to grow */
+    min-height: 0; /* Allow shrinking below content size */
+    display: flex; /* Added */
+    flex-direction: column; /* Added */
+}
+
+#sequencer-tools {
+    display: flex;
+    flex-direction: row;
+    opacity: 1;
+    flex-wrap: nowrap !important;
+}
+
+.grid-wrapper {
+    flex-grow: 1;
+    min-height: 0;
+    overflow-y: hidden;
+    display: flex;
+    gap: 0.5rem; /* Added gap between note-labels and grid-container */
+}
+
+#note-labels {
+    flex-shrink: 0; /* Prevent shrinking */
+    flex-grow: 1;
+    width: 5rem; /* Adjust as needed */
+    height: inherit;
+    font-size: 1rem;
+}
+
+#grid-container {
+    flex-grow: 1; /* Allow grid to take up remaining space */
+}
+
 .retro-container {
     border: 2px solid var(--border-color-light);
     border-right-color: var(--border-color-dark);
@@ -46,12 +118,14 @@ body {
 }
 
 .retro-button {
-    border: 2px solid var(--border-color-light);
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    border: 0.15rem solid var(--border-color-light);
     border-right-color: var(--border-color-dark);
     border-bottom-color: var(--border-color-dark);
+    box-shadow: 0.2rem 0.2rem 0px 0px var(--border-color-dark);
     background-color: var(--button-bg);
     color: var(--button-text-color);
-    box-shadow: 2px 2px 0px 0px var(--border-color-dark);
     text-shadow: 1px 1px 0px var(--border-color-light);
 }
 
@@ -59,7 +133,7 @@ body {
     border: 2px solid var(--border-color-dark);
     border-right-color: var(--border-color-light);
     border-bottom-color: var(--border-color-light);
-    box-shadow: 1px 1px 0px 0px var(--border-color-dark);
+    box-shadow: 0.05rem 0.05rem 0px 0px var(--border-color-dark);
 }
 
 .retro-button.active {
@@ -79,9 +153,8 @@ body {
 }
 
 .grid-cell {
-    height: 40px;
     background-color: #c0c0c0;
-    border: 0,5px solid #808080;
+    /* border: 0,5px solid #808080; */
     cursor: pointer;
     position: relative;
 }
@@ -134,7 +207,8 @@ body {
     pointer-events: none;
 }
 
-#sequencer-tools .retro-button:hover .keybind-popup {
+
+.retro-button:hover .keybind-popup {
     opacity: 1;
 }
 
@@ -153,7 +227,6 @@ body {
 }
 
 .grid-cell.active.highlighted::before {
-    content: '\266B'; /* Unicode for beamed musical notes */
     position: absolute;
     top: 50%;
     left: 50%;
@@ -174,7 +247,7 @@ body {
     justify-content: center;
     background-color: #656565;
     padding: 0.25rem;
-    height: 40px;
+
     box-sizing: border-box;
     color: #ffffff;
     cursor: default;
@@ -218,6 +291,8 @@ body {
     background-color: #a0a0a0;
     margin-bottom: 0.5rem;
     cursor: pointer;
+    width: inherit;
+    font-size: 1rem;
 }
 
 .layer-item.active-layer {
@@ -235,7 +310,8 @@ body {
     overflow-y: auto;
     padding-right: 0.5rem; /* Add padding for scrollbar spacing */
     min-height: 0;
-    max-height: calc(100vh - 13rem);
+    flex-grow: 1;
+    max-width: 100%; /* Prevent overflow */
 }
 
 /* Custom Scrollbar for Webkit browsers */
@@ -296,6 +372,7 @@ body {
     flex-grow: 1;
     min-width: 0;
     width: 0;
+    font-size: 1rem;
 }
 
 .layer-name-input {
@@ -323,11 +400,14 @@ body {
     display: flex;
     gap: 1rem;
     flex-wrap: nowrap;
+    flex-grow: 1;
+    flex-shrink: 0;
+    height: 100%;
 }
 
 /* Custom Scrollbar for Webkit browsers */
 #bus-mixer-container::-webkit-scrollbar {
-    height: 12px;
+    height: 100%; /* 12px */
 }
 
 #bus-mixer-container::-webkit-scrollbar-track {
@@ -351,8 +431,8 @@ body {
     border: 2px solid var(--border-color-dark);
     border-right-color: var(--border-color-light);
     border-bottom-color: var(--border-color-light);
-    height: 128px;
-    width: 118px; /* Fixed width to prevent stretching */
+    height: 100%;
+    width: 10%;
     gap: 0.25rem; /* Add a small gap */
     flex-shrink: 0; /* Prevent shrinking */
 }
@@ -364,7 +444,7 @@ body {
 .bus-label {
     color: white;
     text-shadow: 1px 1px 0px var(--border-color-dark);
-    font-size: 0.75rem;
+    font-size: 1rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -374,42 +454,47 @@ body {
 
 .retro-slider-container {
     position: relative;
-    width: 18px;
-    height: 80px; /* Increased height */
+    width: 100%;
+    /* height: 10%;   */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1/1;
+
 }
 
 .retro-slider {
     -webkit-appearance: none;
     appearance: none;
-    width: 80px; /* Increased length */
-    height: 18px;
+    width: 10%;
+    height: 10%;
     background: #757575;
     outline: none;
-    transform: rotate(-90deg);
     border: 2px solid var(--border-color-dark);
-    position: absolute;
-    bottom: 40%;
-    left: 50%;
-    transform: translateX(-50%) rotate(-90deg);
+    flex-grow: 1;
+    flex-shrink: 1;
+    transform: rotate(-90deg);
+    margin: auto;
 }
 
 .retro-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 18px;
-    height: 25px;
+    width: 1em;      /* Responsive: scales with font-size */
+    height: 1.5em;   /* Responsive: scales with font-size */
     background: var(--button-bg);
     cursor: pointer;
-    border: 2px solid var(--border-color-dark);
-    box-shadow: 2px 2px 0px 0px var(--border-color-dark);
+    border: 0.15em solid var(--border-color-dark);
+    box-shadow: 0.1em 0.1em 0 0 var(--border-color-dark);
 }
 
 .retro-slider::-moz-range-thumb {
-    width: 18px;
-    height: 25px;
+    width: 1em;
+    height: 1.5em;
     background: var(--button-bg);
     cursor: pointer;
-    border: 2px solid var(--border-color-dark);
+    border: 0.15em solid var(--border-color-dark);
+    box-shadow: 0.1em 0.1em 0 0 var(--border-color-dark);
 }
 
 .bus-buttons {
@@ -464,10 +549,12 @@ body {
 }
 
 #bottom-window {
-    height: 11rem;
     overflow-y: hidden;
     overflow-x: auto;
     min-width: 0; /* Critical for flex items to allow scrolling */
+    flex-grow: 1;
+    max-height: 12.5em;
+    min-height: 11em;
 }
 
 /* Custom Scrollbar for Webkit browsers */
@@ -500,4 +587,85 @@ body {
     line-height: 0;
     position: relative;
     bottom: 5px;
+}
+
+
+#sounds-panel {
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 0.5rem; /* Add padding for scrollbar spacing */
+    min-height: 0;
+    flex-grow: 1;
+    max-width: 100%;
+}
+
+/* Custom Scrollbar for Webkit browsers */
+#sounds-panel::-webkit-scrollbar {
+    width: 12px;
+}
+
+#sounds-panel::-webkit-scrollbar-track {
+    background: #4a5568; /* Match BPM slider background */
+    border-radius: 10px;
+}
+
+#sounds-panel::-webkit-scrollbar-thumb {
+    background-color: #ffffff; /* Match BPM slider thumb color */
+    border-radius: 10px;
+    border: 3px solid #4a5568; /* Creates padding around thumb */
+}
+
+.sound-select-button.active {
+    background-color: #555555; /* Dark grey for active state */
+    border: 2px solid var(--border-color-dark);
+    border-right-color: var(--border-color-light);
+    border-bottom-color: var(--border-color-light);
+    box-shadow: 1px 1px 0px 0px var(--border-color-dark);
+}
+
+#export-dialog-overlay {
+    z-index: 1000; /* Ensure it's on top of everything */
+}
+
+#export-dialog-overlay.hidden {
+    display: none;
+}
+
+.mobile-message {
+    display: none; /* Hidden by default */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: black;
+    color: white;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    z-index: 2000; /* On top of everything */
+}
+
+@media (max-aspect-ratio: 16/9) {
+    #aspect-lock {
+        width: 100vw;
+        height: calc(100vw * 9 / 16);
+    }
+}
+
+@media (min-aspect-ratio: 16/9) {
+    #aspect-lock {
+        height: 100vh;
+        width: calc(100vh * 16 / 9);
+    }
+}
+
+@media (max-width: 768px) {
+    .mobile-message {
+        display: flex;
+    }
+    #app-container {
+        display: none;
+    }
 }
