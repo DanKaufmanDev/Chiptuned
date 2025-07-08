@@ -110,7 +110,7 @@ body {
 }
 
 .retro-container {
-    border: 2px solid var(--border-color-light);
+    border: 0.155em solid var(--border-color-light);
     border-right-color: var(--border-color-dark);
     border-bottom-color: var(--border-color-dark);
     background-color: #757575;
@@ -130,7 +130,7 @@ body {
 }
 
 .retro-button:active {
-    border: 2px solid var(--border-color-dark);
+    border: 0.155em solid var(--border-color-dark);
     border-right-color: var(--border-color-light);
     border-bottom-color: var(--border-color-light);
     box-shadow: 0.05rem 0.05rem 0px 0px var(--border-color-dark);
@@ -138,14 +138,14 @@ body {
 
 .retro-button.active {
     background-color: #555555; /* Dark grey for active state */
-    border: 2px solid var(--border-color-dark);
+    border: 0.155em solid var(--border-color-dark);
     border-right-color: var(--border-color-light);
     border-bottom-color: var(--border-color-light);
     box-shadow: 1px 1px 0px 0px var(--border-color-dark);
 }
 
 .retro-input, .retro-checkbox {
-    border: 2px solid var(--border-color-dark);
+    border: 0.155em solid var(--border-color-dark);
     border-right-color: var(--border-color-light);
     border-bottom-color: var(--border-color-light);
     background-color: #ffffff;
@@ -182,7 +182,7 @@ body {
 
 .grid-cell.selected {
     background-color: var(--active-cell-bg) !important;
-    border: 2px solid #800000 !important;
+    border: 0.15em solid #800000 !important;
     box-sizing: border-box; 
 }
 
@@ -200,7 +200,7 @@ body {
     color: #fff;
     padding: 5px 10px;
     border-radius: 5px;
-    font-size: 12px;
+    font-size: 0.8rem;
     white-space: nowrap;
     opacity: 0;
     transition: opacity 0.2s;
@@ -222,7 +222,7 @@ body {
 
 #selection-rectangle {
     background-color: rgba(0, 128, 128, 0.3);
-    border: 1px solid var(--active-cell-bg);
+    border: 0.05em solid var(--active-cell-bg);
     pointer-events: none;
 }
 
@@ -286,10 +286,17 @@ body {
 }
 
 .layer-item {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    width: 16rem;
+    height: 8rem;
+    min-height: 0;
     padding: 0.5rem;
-    border: 2px solid var(--border-color-dark);
+    border: 0.15em solid var(--border-color-dark);
     background-color: #a0a0a0;
     margin-bottom: 0.5rem;
+    margin-right: 3%;
     cursor: pointer;
     width: inherit;
     font-size: 1rem;
@@ -302,16 +309,19 @@ body {
 }
 
 .layer-item-grid {
+    flex: 1 1 0%;
+    min-height: 0;
     background-color: #808080;
     overflow: hidden;
+
 }
 
 #layer-list {
     overflow-y: auto;
-    padding-right: 0.5rem; /* Add padding for scrollbar spacing */
+    overflow-x: hidden;
     min-height: 0;
     flex-grow: 1;
-    max-width: 100%; /* Prevent overflow */
+    max-width: 100%;
 }
 
 /* Custom Scrollbar for Webkit browsers */
@@ -321,7 +331,8 @@ body {
 
 #layer-list::-webkit-scrollbar-track {
     background: #4a5568; /* Match BPM slider background */
-    border-radius: 10px;
+    
+
 }
 
 #layer-list::-webkit-scrollbar-thumb {
@@ -332,23 +343,23 @@ body {
 
 .delete-layer-btn,
 .mute-layer-btn {
-    width: 20px;
-    height: 20px;
+    width: 1.5rem;
+    height: 1.5rem;
     background-color: #333333; /* Dark grey/black */
     color: #ffffff; /* White X */
-    border: 1px solid var(--border-color-light);
+    border: 0.05em solid var(--border-color-light);
     border-right-color: var(--border-color-dark);
     border-bottom-color: var(--border-color-dark);
-    font-size: 12px;
-    line-height: 20px; /* Adjusted to match button height for vertical centering */
+    font-size: 0.8rem;
+    line-height: 1.55rem; /* Adjusted to match button height for vertical centering */
     text-align: center;
-    padding-left: 1px; /* Nudge X to the right by 1px */
+    padding-left: 0.08em; /* Nudge X to the right by 1px */
     cursor: pointer;
 }
 
 .delete-layer-btn:active,
 .mute-layer-btn:active {
-    border: 1px solid var(--border-color-dark);
+    border: 0.05em solid var(--border-color-dark);
     border-right-color: var(--border-color-light);
     border-bottom-color: var(--border-color-light);
 }
@@ -428,7 +439,7 @@ body {
     justify-content: space-between; /* Align items to the top and bottom */
     background-color: #c0c0c0;
     padding: 0.5rem;
-    border: 2px solid var(--border-color-dark);
+    border: 0.155em solid var(--border-color-dark);
     border-right-color: var(--border-color-light);
     border-bottom-color: var(--border-color-light);
     height: 100%;
@@ -443,7 +454,7 @@ body {
 
 .bus-label {
     color: white;
-    text-shadow: 1px 1px 0px var(--border-color-dark);
+    text-shadow: 1px 1px 0 var(--border-color-dark);
     font-size: 1rem;
     white-space: nowrap;
     overflow: hidden;
@@ -470,7 +481,7 @@ body {
     height: 10%;
     background: #757575;
     outline: none;
-    border: 2px solid var(--border-color-dark);
+    border: 0.14em solid var(--border-color-dark);
     flex-grow: 1;
     flex-shrink: 1;
     transform: rotate(-90deg);
@@ -484,7 +495,7 @@ body {
     height: 1.5em;   /* Responsive: scales with font-size */
     background: var(--button-bg);
     cursor: pointer;
-    border: 0.15em solid var(--border-color-dark);
+    border: 0.14em solid var(--border-color-dark);
     box-shadow: 0.1em 0.1em 0 0 var(--border-color-dark);
 }
 
@@ -493,7 +504,7 @@ body {
     height: 1.5em;
     background: var(--button-bg);
     cursor: pointer;
-    border: 0.15em solid var(--border-color-dark);
+    border: 0.14em solid var(--border-color-dark);
     box-shadow: 0.1em 0.1em 0 0 var(--border-color-dark);
 }
 
@@ -511,7 +522,7 @@ body {
     line-height: 1;
     text-align: center;
     padding: 0;
-    border: 2px solid var(--border-color-light);
+    border: 0.155em solid var(--border-color-light);
     border-right-color: var(--border-color-dark);
     border-bottom-color: var(--border-color-dark);
     background-color: var(--button-bg);
@@ -520,7 +531,7 @@ body {
 }
 
 .bus-button:active {
-    border: 2px solid var(--border-color-dark);
+    border: 0.155em solid var(--border-color-dark);
     border-right-color: var(--border-color-light);
     border-bottom-color: var(--border-color-light);
     box-shadow: none;
@@ -559,13 +570,14 @@ body {
 
 /* Custom Scrollbar for Webkit browsers */
 #bottom-window::-webkit-scrollbar {
-    height: 14px; /* Increased height to accommodate the border "padding" */
+    height: 1rem; /* Increased height to accommodate the border "padding" */
+    width: auto;
 }
 
 #bottom-window::-webkit-scrollbar-track {
     background: #4a5568; /* Match BPM slider background */
-    border-radius: 10px;
     border: solid 2px transparent; /* Add transparent border to create space */
+    padding-top: 0.5rem;
 }
 
 #bottom-window::-webkit-scrollbar-thumb {
@@ -617,7 +629,7 @@ body {
 
 .sound-select-button.active {
     background-color: #555555; /* Dark grey for active state */
-    border: 2px solid var(--border-color-dark);
+    border: 0.155em solid var(--border-color-dark);
     border-right-color: var(--border-color-light);
     border-bottom-color: var(--border-color-light);
     box-shadow: 1px 1px 0px 0px var(--border-color-dark);
@@ -665,7 +677,13 @@ body {
     .mobile-message {
         display: flex;
     }
+
     #app-container {
-        display: none;
+        display: none;  
     }
+}
+#app-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
