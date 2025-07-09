@@ -1998,17 +1998,48 @@ effectsWindowReset.addEventListener('click', () => {
     if (currentEditingLayer) {
         const waveform = currentEditingLayer.waveform;
         if (defaultWaveformEffects[waveform]) {
-            // Deep copy the default effects to the layer
             currentEditingLayer.effects = JSON.parse(JSON.stringify(defaultWaveformEffects[waveform]));
-            
-            // Update the UI sliders
             populateEffectsWindow(currentEditingLayer);
-            
-            // Apply the changes to the audio graph
             updateLayerEffects(currentEditingLayer);
         }
     }
 });
+
+// --- Tooltip Logic ---
+const tooltipElement = document.getElementById('global-tooltip');
+if (tooltipElement) {
+    document.body.addEventListener('mouseover', (e) => {
+        const icon = e.target.closest('.info-icon');
+        if (icon) {
+            const tooltipText = icon.getAttribute('data-tooltip');
+            if (tooltipText) {
+                tooltipElement.textContent = tooltipText;
+                
+                const iconRect = icon.getBoundingClientRect();
+                tooltipElement.style.left = `${iconRect.left + (iconRect.width / 2)}px`;
+                tooltipElement.style.top = `${iconRect.top - 5}px`;
+                
+                tooltipElement.classList.add('visible');
+            }
+        }
+    });
+
+    document.body.addEventListener('mouseout', (e) => {
+        const icon = e.target.closest('.info-icon');
+        if (icon) {
+            tooltipElement.classList.remove('visible');
+        }
+    });
+}
+    //         // Deep copy the default effects to the layer
+    //         currentEditingLayer.effects = JSON.parse(JSON.stringify(defaultWaveformEffects[waveform]));
+            
+    //         // Update the UI sliders
+    //         populateEffectsWindow(currentEditingLayer);
+            
+    //         // Apply the changes to the audio graph
+    //         updateLayerEffects(currentEditingLayer);
+    // });
 
 // Add event listeners to effect controls
 document.getElementById('attack-slider').addEventListener('input', (e) => currentEditingLayer.effects.adsr.attack = parseFloat(e.target.value));

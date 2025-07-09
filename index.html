@@ -142,22 +142,36 @@
                 <!-- ADSR -->
                 <div class="effect-section-container">
                     <div class="effect-section mb-6">
-                        <h3 class="text-xl font-bold mb-2 text-white">ADSR Envelope</h3>
+                        <div class="flex items-center mb-2">
+                            <h3 class="text-xl font-bold text-white">ADSR Envelope</h3>
+                        </div>
                         <div class="grid grid-cols-4 gap-4">
                             <div>
-                                <label for="attack-slider" class="block text-white">Attack</label>
+                                <div class="flex items-center">
+                                    <label for="attack-slider" class="block text-white">Attack</label>
+                                    <span class="info-icon" data-tooltip="The time it takes for the sound to reach maximum level.">i</span>
+                                </div>
                                 <input type="range" id="attack-slider" min="0" max="1" step="0.01" class="w-full">
                             </div>
                             <div>
-                                <label for="decay-slider" class="block text-white">Decay</label>
+                                <div class="flex items-center">
+                                    <label for="decay-slider" class="block text-white">Decay</label>
+                                    <span class="info-icon" data-tooltip="The time it takes for the sound to drop to the sustain level.">i</span>
+                                </div>
                                 <input type="range" id="decay-slider" min="0" max="1" step="0.01" class="w-full">
                             </div>
                             <div>
-                                <label for="sustain-slider" class="block text-white">Sustain</label>
+                                <div class="flex items-center">
+                                    <label for="sustain-slider" class="block text-white">Sustain</label>
+                                    <span class="info-icon" data-tooltip="The volume level the sound maintains while the note is held.">i</span>
+                                </div>
                                 <input type="range" id="sustain-slider" min="0" max="1" step="0.01" class="w-full">
                             </div>
                             <div>
-                                <label for="release-slider" class="block text-white">Release</label>
+                                <div class="flex items-center">
+                                    <label for="release-slider" class="block text-white">Release</label>
+                                    <span class="info-icon" data-tooltip="The time it takes for the sound to fade to silence after the note is released.">i</span>
+                                </div>
                                 <input type="range" id="release-slider" min="0" max="2" step="0.01" class="w-full">
                             </div>
                         </div>
@@ -166,18 +180,29 @@
                 <!-- LFO -->
                 <div class="effect-section-container">
                     <div class="effect-section mb-6">
-                        <h3 class="text-xl font-bold mb-2 text-white">LFO (Vibrato)</h3>
+                        <div class="flex items-center mb-2">
+                            <h3 class="text-xl font-bold text-white">LFO (Vibrato)</h3>
+                        </div>
                         <div class="grid grid-cols-3 gap-4">
                             <div>
-                                <label for="lfo-rate-slider" class="block text-white">Rate (Hz)</label>
+                                <div class="flex items-center">
+                                    <label for="lfo-rate-slider" class="block text-white">Rate (Hz)</label>
+                                    <span class="info-icon" data-tooltip="The speed of the vibrato effect.">i</span>
+                                </div>
                                 <input type="range" id="lfo-rate-slider" min="0" max="20" step="0.1" class="w-full">
                             </div>
                             <div>
-                                <label for="lfo-depth-slider" class="block text-white">Depth</label>
+                                <div class="flex items-center">
+                                    <label for="lfo-depth-slider" class="block text-white">Depth</label>
+                                    <span class="info-icon" data-tooltip="The intensity of the vibrato effect.">i</span>
+                                </div>
                                 <input type="range" id="lfo-depth-slider" min="0" max="100" step="1" class="w-full">
                             </div>
                             <div>
-                                <label for="lfo-waveform-select" class="block text-white">Waveform</label>
+                                <div class="flex items-center">
+                                    <label for="lfo-waveform-select" class="block text-white">Waveform</label>
+                                    <span class="info-icon" data-tooltip="The shape of the LFO wave, affecting the character of the vibrato.">i</span>
+                                </div>
                                 <select id="lfo-waveform-select" class="w-full retro-input">
                                     <option value="sine">Sine</option>
                                     <option value="square">Square</option>
@@ -191,18 +216,29 @@
                 <!-- Reverb -->
                 <div class="effect-section-container">
                     <div class="effect-section mb-6">
-                        <h3 class="text-xl font-bold mb-2 text-white">Reverb</h3>
+                        <div class="flex items-center mb-2">
+                            <h3 class="text-xl font-bold text-white">Reverb</h3>
+                        </div>
                         <div class="grid grid-cols-3 gap-4">
                             <div>
-                                <label for="reverb-mix-slider" class="block text-white">Mix</label>
+                                <div class="flex items-center">
+                                    <label for="reverb-mix-slider" class="block text-white">Mix</label>
+                                    <span class="info-icon" data-tooltip="The balance between the original (dry) sound and the reverb (wet) sound.">i</span>
+                                </div>
                                 <input type="range" id="reverb-mix-slider" min="0" max="1" step="0.01" class="w-full">
                             </div>
                             <div>
-                                <label for="reverb-decay-slider" class="block text-white">Decay (s)</label>
+                                <div class="flex items-center">
+                                    <label for="reverb-decay-slider" class="block text-white">Decay (s)</label>
+                                    <span class="info-icon" data-tooltip="The time it takes for the reverb reflections to fade away.">i</span>
+                                </div>
                                 <input type="range" id="reverb-decay-slider" min="0.1" max="5" step="0.1" class="w-full">
                             </div>
                             <div>
-                                <label for="reverb-predelay-slider" class="block text-white">Pre-delay (s)</label>
+                                <div class="flex items-center">
+                                    <label for="reverb-predelay-slider" class="block text-white">Pre-delay (s)</label>
+                                    <span class="info-icon" data-tooltip="The short delay before the reverb effect begins.">i</span>
+                                </div>
                                 <input type="range" id="reverb-predelay-slider" min="0" max="0.5" step="0.01" class="w-full">
                             </div>
                         </div>
@@ -211,18 +247,29 @@
                 <!-- Delay -->
                 <div class="effect-section-container">
                     <div class="effect-section mb-6">
-                        <h3 class="text-xl font-bold mb-2 text-white">Delay</h3>
+                        <div class="flex items-center mb-2">
+                            <h3 class="text-xl font-bold text-white">Delay</h3>
+                        </div>
                         <div class="grid grid-cols-3 gap-4">
                             <div>
-                                <label for="delay-time-slider" class="block text-white">Time (s)</label>
+                                <div class="flex items-center">
+                                    <label for="delay-time-slider" class="block text-white">Time (s)</label>
+                                    <span class="info-icon" data-tooltip="The time between the original sound and its echo.">i</span>
+                                </div>
                                 <input type="range" id="delay-time-slider" min="0" max="1" step="0.01" class="w-full">
                             </div>
                             <div>
-                                <label for="delay-feedback-slider" class="block text-white">Feedback</label>
+                                <div class="flex items-center">
+                                    <label for="delay-feedback-slider" class="block text-white">Feedback</label>
+                                    <span class="info-icon" data-tooltip="The number of times the echo repeats.">i</span>
+                                </div>
                                 <input type="range" id="delay-feedback-slider" min="0" max="0.9" step="0.01" class="w-full">
                             </div>
                             <div>
-                                <label for="delay-mix-slider" class="block text-white">Mix</label>
+                                <div class="flex items-center">
+                                    <label for="delay-mix-slider" class="block text-white">Mix</label>
+                                    <span class="info-icon" data-tooltip="The volume of the echoes relative to the original sound.">i</span>
+                                </div>
                                 <input type="range" id="delay-mix-slider" min="0" max="1" step="0.01" class="w-full">
                             </div>
                         </div>
@@ -231,14 +278,22 @@
                 <!-- Bitcrusher -->
                 <div class="effect-section-container">
                     <div class="effect-section">
-                        <h3 class="text-xl font-bold mb-2 text-white">Bitcrusher</h3>
+                        <div class="flex items-center mb-2">
+                            <h3 class="text-xl font-bold text-white">Bitcrusher</h3>
+                        </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label for="bitcrusher-bits-slider" class="block text-white">Bits</label>
+                                <div class="flex items-center">
+                                    <label for="bitcrusher-bits-slider" class="block text-white">Bits</label>
+                                    <span class="info-icon" data-tooltip="Reduces the audio's dynamic range, creating a crunchy, lo-fi sound. Lower values are more extreme.">i</span>
+                                </div>
                                 <input type="range" id="bitcrusher-bits-slider" min="1" max="16" step="1" class="w-full">
                             </div>
                             <div>
-                                <label for="bitcrusher-frequency-slider" class="block text-white">Frequency Reduction</label>
+                                <div class="flex items-center">
+                                    <label for="bitcrusher-frequency-slider" class="block text-white">Frequency Reduction</label>
+                                    <span class="info-icon" data-tooltip="Lowers the sample rate, making the sound more distorted and 'aliased'.">i</span>
+                                </div>
                                 <input type="range" id="bitcrusher-frequency-slider" min="0" max="1" step="0.01" class="w-full">
                             </div>
                         </div>
@@ -247,10 +302,15 @@
                 <!-- Pan -->
                 <div class="effect-section-container">
                     <div class="effect-section">
-                        <h3 class="text-xl font-bold mb-2 text-white">Pan</h3>
+                        <div class="flex items-center mb-2">
+                            <h3 class="text-xl font-bold text-white">Pan</h3>
+                        </div>
                         <div class="grid grid-cols-1 gap-4">
                             <div>
-                                <label for="pan-slider" class="block text-white">Left / Right</label>
+                                <div class="flex items-center">
+                                    <label for="pan-slider" class="block text-white">Left / Right</label>
+                                    <span class="info-icon" data-tooltip="Controls the stereo position of the sound, from full left to full right.">i</span>
+                                </div>
                                 <input type="range" id="pan-slider" min="-1" max="1" step="0.01" value="0" class="w-full">
                             </div>
                         </div>
@@ -260,6 +320,7 @@
         </div>
     </div>
 
+    <div id="global-tooltip"></div>
     <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
     <script src="script.js"></script>
 </body>

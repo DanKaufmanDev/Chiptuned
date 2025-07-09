@@ -634,15 +634,82 @@ body {
     border: 2px solid #a1a1a1;
     border-right-color: #000000;
     border-bottom-color: #000000;
-    padding: 1rem;
-    margin-bottom: 1rem;
+    padding: 0.25rem;
+    margin-bottom: 0.25rem;
     box-shadow: 5px 5px 0px 0px rgba(0,0,0,0.75);
 }
 
 .effect-section-container h3 {
     color: #ffffff;
     text-shadow: 2px 2px 0px #000000;
-    margin-bottom: 1rem;
+    margin-bottom: 0.25rem;
+    font-size: 1rem;
+}
+
+.effect-section .grid {
+    gap: 0.25rem;
+}
+
+.effect-section label {
+    font-size: 0.8rem;
+}
+
+.effect-section input[type="range"] {
+    height: 4px;
+}
+
+.effect-section input[type="range"]::-webkit-slider-thumb {
+    width: 15px;
+    height: 15px;
+}
+
+.effect-section input[type="range"]::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+}
+
+.effect-section .grid {
+    gap: 0.5rem;
+}
+
+.effect-section label {
+    font-size: 0.9rem;
+}
+
+.info-icon {
+    display: inline-block;
+    width: 1.2rem;
+    height: 1.2rem;
+    border-radius: 50%;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    font-size: 0.8rem;
+    line-height: 1.2rem;
+    cursor: pointer;
+    margin-left: 0.5rem;
+    position: relative;
+}
+
+.info-tooltip {
+    position: absolute;
+    bottom: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    z-index: 1001;
+}
+
+.info-icon:hover .info-tooltip {
+    opacity: 1;
 }
 
 .flex-grow {
