@@ -575,9 +575,7 @@ body {
     right: 0.25rem; /* Small offset from the right */
     width: 2.5em;
     height: 1.5em;
-    /* background-color: #333333; */
     color: #ffffff;
-    border: 0.1em solid var(--border-color-light);
     font-size: 0.8rem;
     text-align: center;
     cursor: pointer;
@@ -640,7 +638,8 @@ body {
     display: flex;
     flex-direction: column;
     flex-grow: 1;
-    height: 11.2rem;
+    flex-shrink: 0;
+    height: 10.8rem;
 }
 
 .effect-section-container h3 {
