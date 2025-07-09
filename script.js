@@ -33,7 +33,6 @@ const selectionRectangle = document.getElementById('selection-rectangle');
 const spliceLine = document.getElementById('splice-line');
 const sequencerPrevButton = document.getElementById('sequencer-prev');
 const sequencerNextButton = document.getElementById('sequencer-next');
-
 const waveforms = ['square', 'sine', 'sawtooth', 'triangle'];
 const instruments = ['piano', 'organ', 'synth lead', 'bass', 'flute', 'trumpet', 'strings'];
 const sfx = ['coin', 'jump', 'laser', 'explosion', 'blip', 'powerup', 'hit'];
@@ -77,9 +76,6 @@ let layers = [];
 let activeLayerIndex = -1;
 let masterGainNode = audioContext.createGain(); // Master Gain Node
 
-
-
-
 const baseNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const baseFrequencies = [16.35, 17.32, 18.35, 19.45, 20.60, 21.83, 23.12, 24.50, 25.96, 27.50, 29.14, 30.87]; // C0 to B0
 
@@ -120,6 +116,7 @@ let currentlySelectedNotes = [];
 let gridOffset = 0;
 let hasUnsavedChanges = false;
 let clipboard = null; // To store copied notes
+
 
 function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
@@ -2031,15 +2028,15 @@ if (tooltipElement) {
         }
     });
 }
-    //         // Deep copy the default effects to the layer
-    //         currentEditingLayer.effects = JSON.parse(JSON.stringify(defaultWaveformEffects[waveform]));
+//         // Deep copy the default effects to the layer
+//         currentEditingLayer.effects = JSON.parse(JSON.stringify(defaultWaveformEffects[waveform]));
             
-    //         // Update the UI sliders
-    //         populateEffectsWindow(currentEditingLayer);
+//         // Update the UI sliders
+//         populateEffectsWindow(currentEditingLayer);
             
-    //         // Apply the changes to the audio graph
-    //         updateLayerEffects(currentEditingLayer);
-    // });
+//         // Apply the changes to the audio graph
+//         updateLayerEffects(currentEditingLayer);
+// });
 
 // Add event listeners to effect controls
 document.getElementById('attack-slider').addEventListener('input', (e) => currentEditingLayer.effects.adsr.attack = parseFloat(e.target.value));
@@ -2088,7 +2085,6 @@ document.getElementById('pan-slider').addEventListener('input', (e) => {
     currentEditingLayer.effects.pan = parseFloat(e.target.value);
     updateLayerEffects(currentEditingLayer);
 });
-
 
 
 function renderBusMixer() {
@@ -2232,8 +2228,6 @@ bpmTextInput.addEventListener('keydown', (e) => {
     }
 });
 
-
-
 clearGridButton.addEventListener('click', () => {
     gridOffset = 0;
     layers[activeLayerIndex].grid = Array(numRows).fill(null).map(() => []); // Clear the active layer's grid data
@@ -2248,22 +2242,22 @@ clearGridButton.addEventListener('click', () => {
 })
 
 function resetProject() {
+    localStorage.removeItem('chiptuned-autosave');
     stopPlayback();
     layers.forEach(layer => {
-        if (layer.gainNode) {
-            layer.gainNode.disconnect();
-            layer.reverbNode.disconnect();
-            layer.reverbWetGain.disconnect();
-            layer.reverbDryGain.disconnect();
-            layer.delayNode.disconnect();
-            layer.delayFeedbackGain.disconnect();
-            layer.delayWetGain.disconnect();
-            layer.delayDryGain.disconnect();
-            if (layer.bitcrusherNode) {
-                layer.bitcrusherNode.disconnect();
-            }
-        }
+        if (layer.gainNode) layer.gainNode.disconnect();
+        if (layer.reverbNode) layer.reverbNode.disconnect();
+        if (layer.reverbWetGain) layer.reverbWetGain.disconnect();
+        if (layer.reverbDryGain) layer.reverbDryGain.disconnect();
+        if (layer.delayNode) layer.delayNode.disconnect();
+        if (layer.delayFeedbackGain) layer.delayFeedbackGain.disconnect();
+        if (layer.delayWetGain) layer.delayWetGain.disconnect();
+        if (layer.delayDryGain) layer.delayDryGain.disconnect();
+        if (layer.bitcrusherNode) layer.bitcrusherNode.disconnect();
+        if (layer.pannerNode) layer.pannerNode.disconnect();
+        if (layer.lfoNode) layer.lfoNode.disconnect(); 
     });
+
     // Disconnect master effects
     masterGainNode.disconnect();
 
@@ -2329,7 +2323,7 @@ newProjectButton.addEventListener('click', async () => {
     if (hasUnsavedChanges) {
         const confirmed = await showConfirmationDialog('You have unsaved changes.<br>Are you sure you want to start a new project?');
         if (confirmed) {
-            resetProject();
+            resetProject();           
         }
     } else {
         resetProject();
@@ -2546,7 +2540,7 @@ async function loadProject(data) {
     };
 
     try {
-        // First, try to decrypt the project data as if it's a new, encrypted project
+      //  First, try to decrypt the project data as if it's a new, encrypted project
         const importedKey = await window.crypto.subtle.importKey(
             "jwk",
             data.key,
@@ -2577,7 +2571,7 @@ async function loadProject(data) {
             processLoadedData(data);
         } catch (e) {
             console.error('Could not load project. It may be corrupt or in an invalid format.', e);
-            alert('Could not load project file. It may be corrupt or in an invalid format.');
+            alert('Could not load project file. It may be corrupt.');
         }
     }
 }
@@ -2840,6 +2834,7 @@ function saveState() {
     history.push(state);
     historyIndex++;
     updateUndoRedoButtons();
+    debouncedAutosaveStateToLocalStorage()
 }
 
 function undo() {
@@ -3146,7 +3141,48 @@ async function init() {
             }
         }
     });
+    const autosaved = localStorage.getItem('chiptuned-autosave');
+    if (autosaved) {
+        try {
+            const data = JSON.parse(autosaved);
+            await loadProject(data);
+            saveState();
+        } catch (e) {
+            console.warn('Failed to load autosaved project:', e);
+        }
+    } else if (!autosaved) {
+        console.log('No autosaved project found.');
+    }
 }
 
 document.addEventListener('DOMContentLoaded', init);
 
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+function autosaveStateToLocalStorage() {
+    const projectData = {
+        bpm: bpmInput.value,
+        loop: loopCheckbox.checked,
+        masterGain: masterGainNode.gain.value,
+        layers: layers.map(layer => ({
+            id: layer.id,
+            name: layer.name,
+            grid: layer.grid,
+            instrument: layer.instrument,
+            waveform: layer.waveform,
+            sfx: layer.sfx,
+            octave: layer.octave,
+            isMuted: layer.isMuted,
+            gainValue: layer.gainValue
+        }))
+    };
+    localStorage.setItem('chiptuned-autosave', JSON.stringify(projectData));
+}
+
+const debouncedAutosaveStateToLocalStorage = debounce(autosaveStateToLocalStorage, 10000);
