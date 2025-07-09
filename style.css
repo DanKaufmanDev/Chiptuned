@@ -342,30 +342,32 @@ body {
 }
 
 .delete-layer-btn,
-.mute-layer-btn {
-    width: 1.5rem;
-    height: 1.5rem;
+.mute-layer-btn,
+.solo-layer-btn {
+    width: 1.5em;
+    height: 1.5em;
     background-color: #333333; /* Dark grey/black */
     color: #ffffff; /* White X */
-    border: 0.05em solid var(--border-color-light);
+    border: 0.1em solid var(--border-color-light);
     border-right-color: var(--border-color-dark);
     border-bottom-color: var(--border-color-dark);
     font-size: 0.8rem;
-    line-height: 1.55rem; /* Adjusted to match button height for vertical centering */
+    line-height: 1.5em; /* Adjusted to match button height for vertical centering */
     text-align: center;
-    padding-left: 0.08em; /* Nudge X to the right by 1px */
+    padding: 0;
     cursor: pointer;
 }
 
 .delete-layer-btn:active,
-.mute-layer-btn:active {
-    border: 0.05em solid var(--border-color-dark);
+.mute-layer-btn:active,
+.solo-layer-btn:active {
+    border: 0.1em solid var(--border-color-dark);
     border-right-color: var(--border-color-light);
     border-bottom-color: var(--border-color-light);
 }
 
 .mute-layer-btn {
-    margin-left: 0.5rem; /* Space from layer name */
+    margin-left: 0.5rem; /* Space from solo button */
 }
 
 .delete-layer-btn {
@@ -374,6 +376,14 @@ body {
 
 .mute-layer-btn.active {
     background-color: #ff0000; /* Red when muted */
+}
+
+.solo-layer-btn {
+    margin-left: 0.25rem; /* Space from layer name */
+}
+
+.solo-layer-btn.active {
+    background-color: #0000ff; /* Blue when soloed */
 }
 
 .layer-name {
@@ -540,6 +550,101 @@ body {
 .bus-button.active {
     background-color: #ff0000; /* Red when active */
 }
+
+
+.bus-container {
+    position: relative; /* Add this to be a positioning context for children */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between; /* Align items to the top and bottom */
+    background-color: #c0c0c0;
+    padding: 0.5rem;
+    border: 0.155em solid var(--border-color-dark);
+    border-right-color: var(--border-color-light);
+    border-bottom-color: var(--border-color-light);
+    height: 100%;
+    width: 10%;
+    gap: 0.25rem; /* Add a small gap */
+    flex-shrink: 0; /* Prevent shrinking */
+}
+
+.effects-button {
+    position: absolute; /* Position relative to the bus-container */
+    top: 0.25rem; /* Small offset from the top */
+    right: 0.25rem; /* Small offset from the right */
+    width: 2.5em;
+    height: 1.5em;
+    /* background-color: #333333; */
+    color: #ffffff;
+    border: 0.1em solid var(--border-color-light);
+    font-size: 0.8rem;
+    text-align: center;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    text-shadow: #333333 2px 2px 0;
+    z-index: 10; /* Ensure it's above other elements */
+}
+
+
+#effects-window-overlay {
+    z-index: 1000;
+}
+
+#effects-window-overlay.hidden {
+    display: none;
+}
+
+.effect-section .retro-slider,
+.effect-section input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 8px;
+    background: #4a5568;
+    outline: none;
+    opacity: 0.7;
+    transition: opacity .2s;
+}
+
+.effect-section .retro-slider::-webkit-slider-thumb,
+.effect-section input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffffff;
+    cursor: pointer;
+}
+
+.effect-section .retro-slider::-moz-range-thumb,
+.effect-section input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffffff;
+    cursor: pointer;
+}
+
+.effect-section-container {
+    background-color: #8a8a8a;
+    border: 2px solid #a1a1a1;
+    border-right-color: #000000;
+    border-bottom-color: #000000;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 5px 5px 0px 0px rgba(0,0,0,0.75);
+}
+
+.effect-section-container h3 {
+    color: #ffffff;
+    text-shadow: 2px 2px 0px #000000;
+    margin-bottom: 1rem;
+}
+
 .flex-grow {
     flex-grow: 1;
 }

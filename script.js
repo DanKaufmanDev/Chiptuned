@@ -38,10 +38,47 @@ const waveforms = ['square', 'sine', 'sawtooth', 'triangle'];
 const instruments = ['piano', 'organ', 'synth lead', 'bass', 'flute', 'trumpet', 'strings'];
 const sfx = ['coin', 'jump', 'laser', 'explosion', 'blip', 'powerup', 'hit'];
 
+const defaultWaveformEffects = {
+    square: {
+        adsr: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.2 },
+        lfo: { rate: 0, depth: 0, waveform: 'sine' },
+        reverb: { mix: 0.1, decay: 0.5, predelay: 0.01 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 8, frequencyReduction: 0.1 },
+        pan: 0
+    },
+    sine: {
+        adsr: { attack: 0.1, decay: 0.2, sustain: 0.7, release: 0.3 },
+        lfo: { rate: 0, depth: 0, waveform: 'sine' },
+        reverb: { mix: 0.2, decay: 1, predelay: 0.02 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 16, frequencyReduction: 0 },
+        pan: 0
+    },
+    sawtooth: {
+        adsr: { attack: 0.05, decay: 0.3, sustain: 0.6, release: 0.4 },
+        lfo: { rate: 0, depth: 0, waveform: 'sine' },
+        reverb: { mix: 0.15, decay: 0.8, predelay: 0.015 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 12, frequencyReduction: 0.05 },
+        pan: 0
+    },
+    triangle: {
+        adsr: { attack: 0.02, decay: 0.15, sustain: 0.5, release: 0.25 },
+        lfo: { rate: 0, depth: 0, waveform: 'sine' },
+        reverb: { mix: 0.1, decay: 0.6, predelay: 0.01 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 10, frequencyReduction: 0.08 },
+        pan: 0
+    }
+};
+
 let layers = [];
 let activeLayerIndex = -1;
 let masterGainNode = audioContext.createGain(); // Master Gain Node
-masterGainNode.connect(audioContext.destination);
+
+
+
 
 const baseNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const baseFrequencies = [16.35, 17.32, 18.35, 19.45, 20.60, 21.83, 23.12, 24.50, 25.96, 27.50, 29.14, 30.87]; // C0 to B0
@@ -117,10 +154,21 @@ function updateTotalDurationAndDisplay() {
 
 function createNewLayer(name) {
     const gainNode = audioContext.createGain();
-    gainNode.gain.value = 1.0; // Default gain for new tracks
-    gainNode.connect(masterGainNode); // Connect track bus to master bus
+    gainNode.gain.value = 1.0;
 
-    return {
+    // --- Effects Nodes ---
+    const reverbNode = audioContext.createConvolver();
+    const reverbWetGain = audioContext.createGain();
+    const reverbDryGain = audioContext.createGain();
+
+    const delayNode = audioContext.createDelay();
+    const delayFeedbackGain = audioContext.createGain();
+    const delayWetGain = audioContext.createGain();
+    const delayDryGain = audioContext.createGain();
+
+    const pannerNode = audioContext.createStereoPanner();
+
+    const layer = {
         id: Date.now(),
         name: name,
         grid: Array(numRows).fill(null).map(() => []),
@@ -129,9 +177,71 @@ function createNewLayer(name) {
         sfx: '',
         octave: 4,
         isMuted: false,
-        gainNode: gainNode, // Store the gain node for this layer
-        gainValue: 1.0 // Store the gain value for saving/loading
+        isSoloed: false,
+        gainNode: gainNode,
+        gainValue: 1.0,
+        effects: JSON.parse(JSON.stringify(defaultWaveformEffects.square)), // Apply default effects
+        reverbNode: reverbNode,
+        reverbWetGain: reverbWetGain,
+        reverbDryGain: reverbDryGain,
+        delayNode: delayNode,
+        delayFeedbackGain: delayFeedbackGain,
+        delayWetGain: delayWetGain,
+        delayDryGain: delayDryGain,
+        bitcrusherNode: null,
+        pannerNode: pannerNode,
+        inputNode: null 
     };
+
+    const bitcrusherNode = createBitcrusherNode(layer);
+    layer.bitcrusherNode = bitcrusherNode;
+    layer.inputNode = bitcrusherNode;
+
+    // --- Build the audio chain ---
+    // The source (oscillator) connects to layer.inputNode (bitcrusher)
+    // The chain is: bitcrusher -> delay -> reverb -> panner -> layer gain -> destination
+
+    // Delay connections
+    bitcrusherNode.connect(delayDryGain);
+    bitcrusherNode.connect(delayWetGain);
+    delayWetGain.connect(delayNode);
+    delayNode.connect(delayFeedbackGain);
+    delayFeedbackGain.connect(delayNode);
+
+    const delayOutput = audioContext.createGain();
+    delayDryGain.connect(delayOutput);
+    delayNode.connect(delayOutput);
+
+    // Reverb connections
+    delayOutput.connect(reverbDryGain);
+    delayOutput.connect(reverbWetGain);
+    reverbWetGain.connect(reverbNode);
+
+    const reverbOutput = audioContext.createGain();
+    reverbDryGain.connect(reverbOutput);
+    reverbNode.connect(reverbOutput);
+
+    // Connect reverb output to panner
+    reverbOutput.connect(pannerNode);
+
+    // Connect panner to layer gain
+    pannerNode.connect(gainNode);
+
+    // Final output
+    gainNode.connect(masterGainNode);
+    masterGainNode.connect(audioContext.destination);
+
+    // Set initial effect parameters
+    reverbWetGain.gain.value = layer.effects.reverb.mix;
+    reverbDryGain.gain.value = 1.0 - layer.effects.reverb.mix;
+    delayWetGain.gain.value = layer.effects.delay.mix;
+    delayDryGain.gain.value = 1.0 - layer.effects.delay.mix;
+    delayFeedbackGain.gain.value = layer.effects.delay.feedback;
+    delayNode.delayTime.value = layer.effects.delay.time;
+    reverbNode.buffer = generateReverbImpulseResponse(layer.effects.reverb.decay, layer.effects.reverb.decay, false);
+    pannerNode.pan.value = layer.effects.pan;
+
+    return layer;
 }
 
 function deleteLayer(indexToDelete) {
@@ -143,6 +253,19 @@ function deleteLayer(indexToDelete) {
     // Disconnect the gain node of the layer being deleted
     if (layers[indexToDelete].gainNode) {
         layers[indexToDelete].gainNode.disconnect();
+        layers[indexToDelete].reverbNode.disconnect();
+        layers[indexToDelete].reverbWetGain.disconnect();
+        layers[indexToDelete].reverbDryGain.disconnect();
+        layers[indexToDelete].delayNode.disconnect();
+        layers[indexToDelete].delayFeedbackGain.disconnect();
+        layers[indexToDelete].delayWetGain.disconnect();
+        layers[indexToDelete].delayDryGain.disconnect();
+        if (layers[indexToDelete].bitcrusherNode) {
+            layers[indexToDelete].bitcrusherNode.disconnect();
+        }
+        if (layers[indexToDelete].pannerNode) {
+            layers[indexToDelete].pannerNode.disconnect();
+        }
     }
 
     layers.splice(indexToDelete, 1);
@@ -153,6 +276,75 @@ function deleteLayer(indexToDelete) {
 
     switchLayer(activeLayerIndex, true);
     renderBusMixer(); // Update mixer after deleting a layer
+}
+
+function generateReverbImpulseResponse(duration, decay, reverse) {
+    const sampleRate = audioContext.sampleRate;
+    const length = sampleRate * duration;
+    const impulse = audioContext.createBuffer(2, length, sampleRate);
+    const impulseL = impulse.getChannelData(0);
+    const impulseR = impulse.getChannelData(1);
+    const random = Math.random;
+
+    for (let i = 0; i < length; i++) {
+        const n = reverse ? length - i : i;
+        impulseL[i] = (random() * 2 - 1) * Math.pow(1 - n / length, decay);
+        impulseR[i] = (random() * 2 - 1) * Math.pow(1 - n / length, decay);
+    }
+    return impulse;
+}
+
+let isAudioWorkletReady = false;
+
+async function setupAudioWorklet() {
+    if (isAudioWorkletReady) return;
+    try {
+        await audioContext.audioWorklet.addModule('bitcrusher-processor.js');
+        isAudioWorkletReady = true;
+        console.log('Audio Worklet is ready.');
+    } catch (e) {
+        console.error('Error loading audio worklet.', e);
+    }
+}
+
+function createBitcrusherNode(layer) {
+    if (!isAudioWorkletReady) {
+        console.error('Audio Worklet is not ready. Cannot create Bitcrusher node.');
+        return null;
+    }
+    const node = new AudioWorkletNode(audioContext, 'bitcrusher-processor');
+    const bitsParam = node.parameters.get('bits');
+    const freqParam = node.parameters.get('frequencyReduction');
+
+    bitsParam.value = layer.effects.bitcrusher.bits;
+    freqParam.value = layer.effects.bitcrusher.frequencyReduction;
+
+    return node;
+}
+
+function toggleSolo(indexToSolo) {
+    const layerToSolo = layers[indexToSolo];
+    layerToSolo.isSoloed = !layerToSolo.isSoloed;
+
+    const anyLayerSoloed = layers.some(layer => layer.isSoloed);
+
+    layers.forEach((layer, index) => {
+        if (anyLayerSoloed) {
+            if (layer.isSoloed) {
+                // This layer is soloed, so it should be audible (if not muted)
+                layer.gainNode.gain.value = layer.isMuted ? 0 : layer.gainValue;
+            } else {
+                // Another layer is soloed, so this one should be silent
+                layer.gainNode.gain.value = 0;
+            }
+        } else {
+            // No layers are soloed, so all layers are audible (if not muted)
+            layer.gainNode.gain.value = layer.isMuted ? 0 : layer.gainValue;
+        }
+    });
+
+    renderLayerList();
+    renderBusMixer();
 }
 
 function renderLayerList() {
@@ -204,6 +396,18 @@ function renderLayerList() {
                 renderLayerList(); // Re-render to hide input without saving
             }
         });
+
+        const soloBtn = document.createElement('button');
+        soloBtn.textContent = 'S';
+        soloBtn.classList.add('solo-layer-btn');
+        if (layer.isSoloed) {
+            soloBtn.classList.add('active');
+        }
+        soloBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleSolo(index);
+        });
+        layerNameContainer.appendChild(soloBtn);
 
         const muteBtn = document.createElement('button');
         muteBtn.textContent = 'M';
@@ -327,19 +531,24 @@ function renderSoundSelectionButtons() {
             const clickedValue = value;
 
             // Reset all sound properties for the active layer
-            activeLayer.waveform = 'square'; // Default waveform
             activeLayer.instrument = '';      // No instrument
             activeLayer.sfx = '';             // No SFX
 
             // Set the property corresponding to the clicked button
             if (clickedType === 'waveform') {
                 activeLayer.waveform = clickedValue;
+                // Apply default effects for the selected waveform
+                if (defaultWaveformEffects[clickedValue]) {
+                    activeLayer.effects = JSON.parse(JSON.stringify(defaultWaveformEffects[clickedValue]));
+                }
             } else if (clickedType === 'instrument') {
                 activeLayer.instrument = clickedValue;
             } else if (clickedType === 'sfx') {
                 activeLayer.sfx = clickedValue;
             }
 
+            // Update the audio nodes with the new effect values
+            updateLayerEffects(activeLayer);
             renderSoundSelectionButtons(); // Re-render to update active state
         });
         return button;
@@ -726,7 +935,7 @@ function nextNote() {
     currentColumn++;
 }
 
-function playSFX(sfx, time, duration, audioCtx, destinationNode) {
+function playSFX(sfx, time, duration, audioCtx, layer) {
     // Implement SFX playback based on the sfx type
     // This is a placeholder. Actual SFX implementation would involve
     // loading audio files or generating specific waveforms/envelopes.
@@ -768,7 +977,7 @@ function playSFX(sfx, time, duration, audioCtx, destinationNode) {
     // Add more SFX implementations here
 
     oscillator.connect(gainNode);
-    gainNode.connect(destinationNode);
+    gainNode.connect(layer.inputNode || layer.gainNode);
 
     if (sfx !== 'explosion') { // Only start oscillator if not using noise for explosion
         oscillator.start(time);
@@ -776,22 +985,35 @@ function playSFX(sfx, time, duration, audioCtx, destinationNode) {
     }
 }
 
-function playInstrument(instrument, frequency, time, duration, audioCtx, destinationNode) {
+function playInstrument(instrument, frequency, time, duration, audioCtx, layer, effects) {
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
+    const { attack, decay, sustain, release } = effects.adsr;
+    const { rate, depth, waveform } = effects.lfo;
 
     oscillator.frequency.setValueAtTime(frequency, time);
 
-    // Basic ADSR envelope (Attack, Decay, Sustain, Release)
-    const attackTime = 0.01;
-    const decayTime = 0.1;
-    const sustainLevel = 0.7;
-    const releaseTime = 0.2;
+    // LFO for vibrato
+    if (depth > 0) {
+        const lfo = audioCtx.createOscillator();
+        lfo.type = waveform;
+        lfo.frequency.setValueAtTime(rate, time);
 
+        const lfoGain = audioCtx.createGain();
+        lfoGain.gain.setValueAtTime(depth, time);
+
+        lfo.connect(lfoGain);
+        lfoGain.connect(oscillator.frequency);
+
+        lfo.start(time);
+        lfo.stop(time + duration + release); // LFO continues slightly after note ends
+    }
+
+    // ADSR envelope
     gainNode.gain.setValueAtTime(0, time);
-    gainNode.gain.linearRampToValueAtTime(1, time + attackTime);
-    gainNode.gain.linearRampToValueAtTime(sustainLevel, time + attackTime + decayTime);
-    gainNode.gain.linearRampToValueAtTime(0, time + duration - releaseTime);
+    gainNode.gain.linearRampToValueAtTime(1, time + attack);
+    gainNode.gain.linearRampToValueAtTime(sustain, time + attack + decay);
+    gainNode.gain.setValueAtTime(sustain, time + duration - release);
     gainNode.gain.linearRampToValueAtTime(0, time + duration);
 
 
@@ -831,7 +1053,7 @@ function playInstrument(instrument, frequency, time, duration, audioCtx, destina
     // Add more instrument implementations here
 
     oscillator.connect(gainNode);
-    gainNode.connect(destinationNode);
+    gainNode.connect(layer.inputNode || layer.gainNode);
 
     oscillator.start(time);
     oscillator.stop(time + duration);
@@ -839,18 +1061,39 @@ function playInstrument(instrument, frequency, time, duration, audioCtx, destina
     return { oscillator, gainNode };
 }
 
-function playSound(waveform, frequency, time, duration, audioCtx, destinationNode) {
+function playSound(waveform, frequency, time, duration, audioCtx, layer, effects) {
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
+    const { attack, decay, sustain, release } = effects.adsr;
+    const { rate, depth, waveform: lfoWaveform } = effects.lfo;
 
     oscillator.type = waveform;
     oscillator.frequency.setValueAtTime(frequency, time);
 
-    gainNode.gain.setValueAtTime(0.2, time);
-    gainNode.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+    // LFO for vibrato
+    if (depth > 0) {
+        const lfo = audioCtx.createOscillator();
+        lfo.type = lfoWaveform;
+        lfo.frequency.setValueAtTime(rate, time);
+
+        const lfoGain = audioCtx.createGain();
+        lfoGain.gain.setValueAtTime(depth, time);
+
+        lfo.connect(lfoGain);
+        lfoGain.connect(oscillator.frequency);
+
+        lfo.start(time);
+        lfo.stop(time + duration + release);
+    }
+
+    gainNode.gain.setValueAtTime(0, time);
+    gainNode.gain.linearRampToValueAtTime(1, time + attack);
+    gainNode.gain.linearRampToValueAtTime(sustain, time + attack + decay);
+    gainNode.gain.setValueAtTime(sustain, time + duration - release);
+    gainNode.gain.linearRampToValueAtTime(0, time + duration);
 
     oscillator.connect(gainNode);
-    gainNode.connect(destinationNode);
+    gainNode.connect(layer.inputNode || layer.gainNode);
 
     oscillator.start(time);
     oscillator.stop(time + duration);
@@ -858,9 +1101,38 @@ function playSound(waveform, frequency, time, duration, audioCtx, destinationNod
     return { oscillator, gainNode };
 }
 
+function updateLayerEffects(layer) {
+    // Update reverb
+    layer.reverbWetGain.gain.value = layer.effects.reverb.mix;
+    layer.reverbDryGain.gain.value = 1 - layer.effects.reverb.mix;
+    layer.reverbNode.buffer = generateReverbImpulseResponse(layer.effects.reverb.decay, layer.effects.reverb.decay, false);
+
+    // Update delay
+    layer.delayNode.delayTime.value = layer.effects.delay.time;
+    layer.delayFeedbackGain.gain.value = layer.effects.delay.feedback;
+    layer.delayWetGain.gain.value = layer.effects.delay.mix;
+    layer.delayDryGain.gain.value = 1 - layer.effects.delay.mix;
+
+    // Update bitcrusher
+    if (layer.bitcrusherNode) {
+        const bitsParam = layer.bitcrusherNode.parameters.get('bits');
+        const freqParam = layer.bitcrusherNode.parameters.get('frequencyReduction');
+        bitsParam.setValueAtTime(layer.effects.bitcrusher.bits, audioContext.currentTime);
+        freqParam.setValueAtTime(layer.effects.bitcrusher.frequencyReduction, audioContext.currentTime);
+    }
+
+    // Update panner
+    if (layer.pannerNode) {
+        layer.pannerNode.pan.setValueAtTime(layer.effects.pan, audioContext.currentTime);
+    }
+}
+
 function scheduleNote(beatNumber, time) {
+    const anyLayerSoloed = layers.some(l => l.isSoloed);
+
     layers.forEach(layer => {
-        if (layer.isMuted) return; // Skip muted layers
+        const isAudible = (!anyLayerSoloed && !layer.isMuted) || (anyLayerSoloed && layer.isSoloed && !layer.isMuted);
+        if (!isAudible) return;
 
         for (let i = 0; i < numRows; i++) {
             // Find notes that start at the current beatNumber
@@ -872,18 +1144,12 @@ function scheduleNote(beatNumber, time) {
 
                 const noteFrequency = baseFrequencies[i] * Math.pow(2, layer.octave);
 
-                const selectedSfx = layer.sfx;
-                if (selectedSfx) {
-                    playSFX(selectedSfx, time, noteDurationInSeconds, audioContext, layer.gainNode);
+                if (layer.sfx) {
+                    playSFX(layer.sfx, time, noteDurationInSeconds, audioContext, layer, layer.effects);
+                } else if (layer.instrument) {
+                    playInstrument(layer.instrument, noteFrequency, time, noteDurationInSeconds, audioContext, layer, layer.effects);
                 } else {
-                    const selectedInstrument = layer.instrument;
-                    if (selectedInstrument) { // Check if an instrument is selected
-                        const { oscillator, gainNode } = playInstrument(selectedInstrument, noteFrequency, time, noteDurationInSeconds, audioContext, layer.gainNode);
-                        playingNodes.push({ oscillator, gainNode });
-                    } else { // If no instrument, play waveform
-                        const { oscillator, gainNode } = playSound(layer.waveform, noteFrequency, time, noteDurationInSeconds, audioContext, layer.gainNode);
-                        playingNodes.push({ oscillator, gainNode });
-                    }
+                    playSound(layer.waveform, noteFrequency, time, noteDurationInSeconds, audioContext, layer, layer.effects);
                 }
             });
         }
@@ -966,6 +1232,12 @@ function draw() {
 
 function startPlayback(startColumn = 0) {
     if (isPlaying) return;
+
+    // Resume AudioContext if it's suspended
+    if (audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
+
     isPlaying = true;
 
     updateTotalDurationAndDisplay();
@@ -1679,6 +1951,115 @@ window.addEventListener('resize', () => {
     // which will naturally pick up the new dimensions on the next frame.
 });
 
+// --- Effects Window Logic ---
+const effectsWindowOverlay = document.getElementById('effects-window-overlay');
+const effectsWindowTitle = document.getElementById('effects-window-title');
+const effectsWindowClose = document.getElementById('effects-window-close');
+const effectsWindowReset = document.getElementById('effects-window-reset');
+let currentEditingLayer = null;
+
+function populateEffectsWindow(layer) {
+    document.getElementById('attack-slider').value = layer.effects.adsr.attack;
+    document.getElementById('decay-slider').value = layer.effects.adsr.decay;
+    document.getElementById('sustain-slider').value = layer.effects.adsr.sustain;
+    document.getElementById('release-slider').value = layer.effects.adsr.release;
+    document.getElementById('lfo-rate-slider').value = layer.effects.lfo.rate;
+    document.getElementById('lfo-depth-slider').value = layer.effects.lfo.depth;
+    document.getElementById('lfo-waveform-select').value = layer.effects.lfo.waveform;
+    document.getElementById('reverb-mix-slider').value = layer.effects.reverb.mix;
+    document.getElementById('reverb-decay-slider').value = layer.effects.reverb.decay;
+    document.getElementById('reverb-predelay-slider').value = layer.effects.reverb.predelay;
+    document.getElementById('delay-time-slider').value = layer.effects.delay.time;
+    document.getElementById('delay-feedback-slider').value = layer.effects.delay.feedback;
+    document.getElementById('delay-mix-slider').value = layer.effects.delay.mix;
+    document.getElementById('bitcrusher-bits-slider').value = layer.effects.bitcrusher.bits;
+    document.getElementById('bitcrusher-frequency-slider').value = layer.effects.bitcrusher.frequencyReduction;
+    document.getElementById('pan-slider').value = layer.effects.pan;
+}
+
+function openEffectsWindow(layer) {
+    currentEditingLayer = layer;
+    effectsWindowTitle.textContent = `Effects: ${layer.name}`;
+
+    populateEffectsWindow(layer);
+    updateLayerEffects(layer);
+
+    effectsWindowOverlay.classList.remove('hidden');
+}
+
+function closeEffectsWindow() {
+    effectsWindowOverlay.classList.add('hidden');
+    currentEditingLayer = null;
+    saveState(); // Save changes when closing
+}
+
+effectsWindowClose.addEventListener('click', closeEffectsWindow);
+effectsWindowReset.addEventListener('click', () => {
+    if (currentEditingLayer) {
+        const waveform = currentEditingLayer.waveform;
+        if (defaultWaveformEffects[waveform]) {
+            // Deep copy the default effects to the layer
+            currentEditingLayer.effects = JSON.parse(JSON.stringify(defaultWaveformEffects[waveform]));
+            
+            // Update the UI sliders
+            populateEffectsWindow(currentEditingLayer);
+            
+            // Apply the changes to the audio graph
+            updateLayerEffects(currentEditingLayer);
+        }
+    }
+});
+
+// Add event listeners to effect controls
+document.getElementById('attack-slider').addEventListener('input', (e) => currentEditingLayer.effects.adsr.attack = parseFloat(e.target.value));
+document.getElementById('decay-slider').addEventListener('input', (e) => currentEditingLayer.effects.adsr.decay = parseFloat(e.target.value));
+document.getElementById('sustain-slider').addEventListener('input', (e) => currentEditingLayer.effects.adsr.sustain = parseFloat(e.target.value));
+document.getElementById('release-slider').addEventListener('input', (e) => currentEditingLayer.effects.adsr.release = parseFloat(e.target.value));
+document.getElementById('lfo-rate-slider').addEventListener('input', (e) => currentEditingLayer.effects.lfo.rate = parseFloat(e.target.value));
+document.getElementById('lfo-depth-slider').addEventListener('input', (e) => currentEditingLayer.effects.lfo.depth = parseFloat(e.target.value));
+document.getElementById('lfo-waveform-select').addEventListener('change', (e) => {
+    currentEditingLayer.effects.lfo.waveform = e.target.value;
+    updateLayerEffects(currentEditingLayer);
+});
+document.getElementById('reverb-mix-slider').addEventListener('input', (e) => {
+    currentEditingLayer.effects.reverb.mix = parseFloat(e.target.value);
+    updateLayerEffects(currentEditingLayer);
+});
+document.getElementById('reverb-decay-slider').addEventListener('input', (e) => {
+    currentEditingLayer.effects.reverb.decay = parseFloat(e.target.value);
+    updateLayerEffects(currentEditingLayer);
+});
+document.getElementById('reverb-predelay-slider').addEventListener('input', (e) => {
+    currentEditingLayer.effects.reverb.predelay = parseFloat(e.target.value);
+    updateLayerEffects(currentEditingLayer);
+});
+document.getElementById('delay-time-slider').addEventListener('input', (e) => {
+    currentEditingLayer.effects.delay.time = parseFloat(e.target.value);
+    updateLayerEffects(currentEditingLayer);
+});
+document.getElementById('delay-feedback-slider').addEventListener('input', (e) => {
+    currentEditingLayer.effects.delay.feedback = parseFloat(e.target.value);
+    updateLayerEffects(currentEditingLayer);
+});
+document.getElementById('delay-mix-slider').addEventListener('input', (e) => {
+    currentEditingLayer.effects.delay.mix = parseFloat(e.target.value);
+    updateLayerEffects(currentEditingLayer);
+});
+document.getElementById('bitcrusher-bits-slider').addEventListener('input', (e) => {
+    currentEditingLayer.effects.bitcrusher.bits = parseInt(e.target.value, 10);
+    updateLayerEffects(currentEditingLayer);
+});
+document.getElementById('bitcrusher-frequency-slider').addEventListener('input', (e) => {
+    currentEditingLayer.effects.bitcrusher.frequencyReduction = parseFloat(e.target.value);
+    updateLayerEffects(currentEditingLayer);
+});
+document.getElementById('pan-slider').addEventListener('input', (e) => {
+    currentEditingLayer.effects.pan = parseFloat(e.target.value);
+    updateLayerEffects(currentEditingLayer);
+});
+
+
+
 function renderBusMixer() {
     busMixerContainer.innerHTML = '';
 
@@ -1686,6 +2067,8 @@ function renderBusMixer() {
     const masterBusDiv = document.createElement('div');
     masterBusDiv.classList.add('bus-container');
     masterBusDiv.innerHTML = `
+        <div class="bus-top">
+        </div>
         <div class="retro-slider-container">
             <input type="range" class="retro-slider" id="master-volume-slider" min="0" max="100" value="70">
         </div>
@@ -1713,6 +2096,9 @@ function renderBusMixer() {
             trackBusDiv.classList.add('active-bus');
         }
         trackBusDiv.innerHTML = `
+            <div class="bus-top">
+                <button class="effects-button">...</button>
+            </div>
             <div class="retro-slider-container">
                 <input type="range" class="retro-slider" id="track-volume-slider-${layer.id}" min="0" max="100" value="100">
             </div>
@@ -1720,21 +2106,20 @@ function renderBusMixer() {
         `;
         busMixerContainer.appendChild(trackBusDiv);
 
+        const effectsButton = trackBusDiv.querySelector('.effects-button');
+        effectsButton.addEventListener('click', () => {
+            openEffectsWindow(layer);
+        });
         const trackVolumeSlider = document.getElementById(`track-volume-slider-${layer.id}`);
         const trackLabel = trackBusDiv.querySelector('.bus-label');
         trackVolumeSlider.value = linearToLog(layer.gainNode.gain.value);
         trackVolumeSlider.addEventListener('input', (e) => {
             const newGain = logToLinear(e.target.value);
-            layer.gainValue = newGain; // Store the "true" volume
-            layer.gainNode.gain.value = newGain; // Apply it to the sound
-            trackLabel.textContent = Math.round(e.target.value);
-
-            // If the new gain is 0, mute the track. Otherwise, unmute it.
-            const shouldBeMuted = newGain === 0;
-            if (layer.isMuted !== shouldBeMuted) {
-                layer.isMuted = shouldBeMuted;
-                renderLayerList(); // Update the mute button in the layer list
+            layer.gainValue = newGain;
+            if (!layer.isMuted) {
+                layer.gainNode.gain.value = newGain;
             }
+            trackLabel.textContent = Math.round(e.target.value);
         });
         trackVolumeSlider.addEventListener('change', (e) => {
             trackLabel.textContent = layer.name;
@@ -1836,8 +2221,21 @@ function resetProject() {
     layers.forEach(layer => {
         if (layer.gainNode) {
             layer.gainNode.disconnect();
+            layer.reverbNode.disconnect();
+            layer.reverbWetGain.disconnect();
+            layer.reverbDryGain.disconnect();
+            layer.delayNode.disconnect();
+            layer.delayFeedbackGain.disconnect();
+            layer.delayWetGain.disconnect();
+            layer.delayDryGain.disconnect();
+            if (layer.bitcrusherNode) {
+                layer.bitcrusherNode.disconnect();
+            }
         }
     });
+    // Disconnect master effects
+    masterGainNode.disconnect();
+
     layers = [];
     activeLayerIndex = -1;
     gridOffset = 0;
@@ -1846,7 +2244,11 @@ function resetProject() {
     historyIndex = -1;
 
     // Reset master gain
+    masterGainNode = audioContext.createGain();
     masterGainNode.gain.value = 1.0; // Default master volume (max)
+
+    // Reconnect master effects to destination
+    masterGainNode.connect(audioContext.destination);
 
     // Create a single, fresh layer
     addLayer(); 
@@ -2501,7 +2903,13 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-document.addEventListener('DOMContentLoaded', () => {
+async function init() {
+    await setupAudioWorklet(); // Ensure the worklet is ready before doing anything else
+
+    // Connect the master audio graph directly to destination
+    masterGainNode.connect(audioContext.destination);
+
+    // Finish the rest of the setup
     createGrid();
     addLayer(); // Create initial layer
     saveState(); // Save initial state
@@ -2638,7 +3046,6 @@ document.addEventListener('DOMContentLoaded', () => {
     createDelayedPopup(document.getElementById('tool-cut'), `${modifier}+X`);
     createDelayedPopup(document.getElementById('tool-copy'), `${modifier}+C`);
     createDelayedPopup(document.getElementById('tool-paste'), `${modifier}+V`);
-""
 
     // New: Add event listener for the grid wrapper scroll
     const gridWrapper = document.querySelector('.grid-wrapper');
@@ -2708,4 +3115,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
-});
+}
+
+document.addEventListener('DOMContentLoaded', init);
+

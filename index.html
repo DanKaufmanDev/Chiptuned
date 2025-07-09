@@ -32,11 +32,7 @@
                         <input type="range" id="global-progress-bar" min="0" value="0" step="0.01" class="flex-grow h-2 appearance-none cursor-pointer bpm-slider">
                         <span id="global-timestamp" class="text-lg font-bold text-white ml-4">0:00/0:00</span>
                     </div>
-                    <div>
-                        <button class="retro-button"> << </button>
-                        <button id="global-play-pause" class="px-4 py-2 text-white font-bold transition duration-300 retro-button mx-auto">Play</button>
-                        <button class="retro-button"> >> </button>
-                    </div>
+                    <button id="global-play-pause" class="px-4 py-2 text-white font-bold transition duration-300 retro-button mx-auto">Play</button>
                 </div>
 
                 <!-- Main App Window -->
@@ -44,7 +40,7 @@
                     
                     <div class="controls mb-8 flex flex-row items-start justify-center">
                         <!-- Tool Selection -->
-                        <div id="sequencer-tools" class="flex flex-row gap-2">
+                        <div id="sequencer-tools" class="flex flex-row flex-nowrap gap-2">
                             <button id="tool-undo" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Undo</button>
                             <button id="tool-redo" class="px-4 py-2 text-white font-bold transition duration-300 retro-button mr-10">Redo</button>
                             <button class="px-4 py-2 text-white font-bold transition duration-300 retro-button" data-tool-id="draw" data-keybind="D">Draw</button>
@@ -128,6 +124,138 @@
             <div class="flex justify-center gap-4">
                 <button id="export-mp3-button" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Save as MP3</button>
                 <button id="export-wav-button" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Save as WAV</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Effects Window -->
+    <div id="effects-window-overlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+        <div class="retro-container p-8 w-3/4 h-3/4 flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="effects-window-title" class="text-2xl font-bold text-white"></h2>
+                <div>
+                    <button id="effects-window-reset" class="px-4 py-2 text-white font-bold transition duration-300 retro-button mr-2">Reset</button>
+                    <button id="effects-window-close" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">X</button>
+                </div>
+            </div>
+            <div class="flex-grow overflow-y-auto">
+                <!-- ADSR -->
+                <div class="effect-section-container">
+                    <div class="effect-section mb-6">
+                        <h3 class="text-xl font-bold mb-2 text-white">ADSR Envelope</h3>
+                        <div class="grid grid-cols-4 gap-4">
+                            <div>
+                                <label for="attack-slider" class="block text-white">Attack</label>
+                                <input type="range" id="attack-slider" min="0" max="1" step="0.01" class="w-full">
+                            </div>
+                            <div>
+                                <label for="decay-slider" class="block text-white">Decay</label>
+                                <input type="range" id="decay-slider" min="0" max="1" step="0.01" class="w-full">
+                            </div>
+                            <div>
+                                <label for="sustain-slider" class="block text-white">Sustain</label>
+                                <input type="range" id="sustain-slider" min="0" max="1" step="0.01" class="w-full">
+                            </div>
+                            <div>
+                                <label for="release-slider" class="block text-white">Release</label>
+                                <input type="range" id="release-slider" min="0" max="2" step="0.01" class="w-full">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- LFO -->
+                <div class="effect-section-container">
+                    <div class="effect-section mb-6">
+                        <h3 class="text-xl font-bold mb-2 text-white">LFO (Vibrato)</h3>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <label for="lfo-rate-slider" class="block text-white">Rate (Hz)</label>
+                                <input type="range" id="lfo-rate-slider" min="0" max="20" step="0.1" class="w-full">
+                            </div>
+                            <div>
+                                <label for="lfo-depth-slider" class="block text-white">Depth</label>
+                                <input type="range" id="lfo-depth-slider" min="0" max="100" step="1" class="w-full">
+                            </div>
+                            <div>
+                                <label for="lfo-waveform-select" class="block text-white">Waveform</label>
+                                <select id="lfo-waveform-select" class="w-full retro-input">
+                                    <option value="sine">Sine</option>
+                                    <option value="square">Square</option>
+                                    <option value="sawtooth">Sawtooth</option>
+                                    <option value="triangle">Triangle</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Reverb -->
+                <div class="effect-section-container">
+                    <div class="effect-section mb-6">
+                        <h3 class="text-xl font-bold mb-2 text-white">Reverb</h3>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <label for="reverb-mix-slider" class="block text-white">Mix</label>
+                                <input type="range" id="reverb-mix-slider" min="0" max="1" step="0.01" class="w-full">
+                            </div>
+                            <div>
+                                <label for="reverb-decay-slider" class="block text-white">Decay (s)</label>
+                                <input type="range" id="reverb-decay-slider" min="0.1" max="5" step="0.1" class="w-full">
+                            </div>
+                            <div>
+                                <label for="reverb-predelay-slider" class="block text-white">Pre-delay (s)</label>
+                                <input type="range" id="reverb-predelay-slider" min="0" max="0.5" step="0.01" class="w-full">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Delay -->
+                <div class="effect-section-container">
+                    <div class="effect-section mb-6">
+                        <h3 class="text-xl font-bold mb-2 text-white">Delay</h3>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <label for="delay-time-slider" class="block text-white">Time (s)</label>
+                                <input type="range" id="delay-time-slider" min="0" max="1" step="0.01" class="w-full">
+                            </div>
+                            <div>
+                                <label for="delay-feedback-slider" class="block text-white">Feedback</label>
+                                <input type="range" id="delay-feedback-slider" min="0" max="0.9" step="0.01" class="w-full">
+                            </div>
+                            <div>
+                                <label for="delay-mix-slider" class="block text-white">Mix</label>
+                                <input type="range" id="delay-mix-slider" min="0" max="1" step="0.01" class="w-full">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Bitcrusher -->
+                <div class="effect-section-container">
+                    <div class="effect-section">
+                        <h3 class="text-xl font-bold mb-2 text-white">Bitcrusher</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="bitcrusher-bits-slider" class="block text-white">Bits</label>
+                                <input type="range" id="bitcrusher-bits-slider" min="1" max="16" step="1" class="w-full">
+                            </div>
+                            <div>
+                                <label for="bitcrusher-frequency-slider" class="block text-white">Frequency Reduction</label>
+                                <input type="range" id="bitcrusher-frequency-slider" min="0" max="1" step="0.01" class="w-full">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Pan -->
+                <div class="effect-section-container">
+                    <div class="effect-section">
+                        <h3 class="text-xl font-bold mb-2 text-white">Pan</h3>
+                        <div class="grid grid-cols-1 gap-4">
+                            <div>
+                                <label for="pan-slider" class="block text-white">Left / Right</label>
+                                <input type="range" id="pan-slider" min="-1" max="1" step="0.01" value="0" class="w-full">
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
