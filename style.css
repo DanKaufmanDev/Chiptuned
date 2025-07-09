@@ -637,6 +637,10 @@ body {
     padding: 0.25rem;
     margin-bottom: 0.25rem;
     box-shadow: 5px 5px 0px 0px rgba(0,0,0,0.75);
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    height: 11.2rem;
 }
 
 .effect-section-container h3 {
@@ -691,24 +695,22 @@ body {
     position: relative;
 }
 
-.info-tooltip {
-    position: absolute;
-    bottom: calc(100% + 5px);
-    left: 50%;
-    transform: translateX(-50%);
+#global-tooltip {
+    position: fixed;
     background-color: #333;
     color: #fff;
     padding: 5px 10px;
     border-radius: 5px;
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     white-space: nowrap;
     opacity: 0;
     transition: opacity 0.2s;
     pointer-events: none;
-    z-index: 1001;
+    z-index: 9999;
+    transform: translate(-50%, -120%);
 }
 
-.info-icon:hover .info-tooltip {
+#global-tooltip.visible {
     opacity: 1;
 }
 

@@ -41,10 +41,10 @@ const sfx = ['coin', 'jump', 'laser', 'explosion', 'blip', 'powerup', 'hit'];
 const defaultWaveformEffects = {
     square: {
         adsr: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.2 },
-        lfo: { rate: 0, depth: 0, waveform: 'sine' },
+        lfo: { rate: 0, depth: 0, waveform: 'square' },
         reverb: { mix: 0.1, decay: 0.5, predelay: 0.01 },
         delay: { time: 0, feedback: 0, mix: 0 },
-        bitcrusher: { bits: 8, frequencyReduction: 0.1 },
+        bitcrusher: { bits: 16, frequencyReduction: 1 },
         pan: 0
     },
     sine: {
@@ -52,23 +52,23 @@ const defaultWaveformEffects = {
         lfo: { rate: 0, depth: 0, waveform: 'sine' },
         reverb: { mix: 0.2, decay: 1, predelay: 0.02 },
         delay: { time: 0, feedback: 0, mix: 0 },
-        bitcrusher: { bits: 16, frequencyReduction: 0 },
+        bitcrusher: { bits: 16, frequencyReduction: 1 },
         pan: 0
     },
     sawtooth: {
         adsr: { attack: 0.05, decay: 0.3, sustain: 0.6, release: 0.4 },
-        lfo: { rate: 0, depth: 0, waveform: 'sine' },
+        lfo: { rate: 0, depth: 0, waveform: 'sawtooth' },
         reverb: { mix: 0.15, decay: 0.8, predelay: 0.015 },
         delay: { time: 0, feedback: 0, mix: 0 },
-        bitcrusher: { bits: 12, frequencyReduction: 0.05 },
+        bitcrusher: { bits: 16, frequencyReduction: 1 },
         pan: 0
     },
     triangle: {
         adsr: { attack: 0.02, decay: 0.15, sustain: 0.5, release: 0.25 },
-        lfo: { rate: 0, depth: 0, waveform: 'sine' },
+        lfo: { rate: 0, depth: 0, waveform: 'triangle' },
         reverb: { mix: 0.1, decay: 0.6, predelay: 0.01 },
         delay: { time: 0, feedback: 0, mix: 0 },
-        bitcrusher: { bits: 10, frequencyReduction: 0.08 },
+        bitcrusher: { bits: 16, frequencyReduction: 1 },
         pan: 0
     }
 };
@@ -2017,7 +2017,7 @@ if (tooltipElement) {
                 
                 const iconRect = icon.getBoundingClientRect();
                 tooltipElement.style.left = `${iconRect.left + (iconRect.width / 2)}px`;
-                tooltipElement.style.top = `${iconRect.top - 5}px`;
+                tooltipElement.style.top = `${iconRect.top}px`; // Position at the top of the icon
                 
                 tooltipElement.classList.add('visible');
             }
