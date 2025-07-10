@@ -72,6 +72,24 @@ const defaultWaveformEffects = {
     }
 };
 
+const DEFAULT_KEYBINDS = {
+    'global-open': 'o',
+    'global-save': 's',
+    'global-new': 'p',
+    'global-select-all': 'a',
+    'tool-undo': 'z',
+    'tool-redo': 'z',
+    'tool-cut': 'x',
+    'tool-copy': 'c',
+    'tool-paste': 'v',
+    'tool-draw': 'd',
+    'tool-splice': 'x',
+    'tool-erase': 'e',
+    'tool-select': 's',
+    'tool-move': 'g',
+    'global-play': ' '
+};
+
 let layers = [];
 let activeLayerIndex = -1;
 let masterGainNode = audioContext.createGain(); // Master Gain Node
@@ -115,6 +133,7 @@ let currentlySelectedNotes = [];
 let gridOffset = 0;
 let hasUnsavedChanges = false;
 let clipboard = null; 
+let keybinds = loadKeybinds();
 
 function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
@@ -192,8 +211,6 @@ function createNewLayer(name) {
     layer.bitcrusherNode = bitcrusherNode;
     layer.inputNode = bitcrusherNode;
 
-    // --- Build the audio chain ---
-    // The source (oscillator) connects to layer.inputNode (bitcrusher)
     // The chain is: bitcrusher -> delay -> reverb -> panner -> layer gain -> destination
 
     // Delay connections
@@ -3161,21 +3178,21 @@ document.addEventListener('keydown', (e) => {
     // --- Modifier Key Shortcuts (Cmd/Ctrl) ---
     if (e.metaKey || e.ctrlKey) {
         if (isInputFocused) return;
-        
+
         switch (key) {
-            case 's':
+            case keybinds['global-save']:
                 e.preventDefault();
                 saveProject();
                 break;
-            case 'o':
+            case keybinds['global-open']:
                 e.preventDefault();
                 loadProjectButton.click();
                 break;
-            case 'a':
+            case keybinds['global-select-all']:
                 e.preventDefault();
                 selectAllNotes();
                 break;
-            case 'z':
+            case keybinds['tool-undo']:
                 e.preventDefault();
                 if (e.shiftKey) {
                     redo();
@@ -3183,19 +3200,19 @@ document.addEventListener('keydown', (e) => {
                     undo();
                 }
                 break;
-            case 'c':
+            case keybinds['tool-copy']:
                 e.preventDefault();
                 copySelectedNotes();
                 break;
-            case 'x':
+            case keybinds['tool-cut']:
                 e.preventDefault();
                 cutSelectedNotes();
                 break;
-            case 'v':
+            case keybinds['tool-paste']:
                 e.preventDefault();
                 pasteNotes();
                 break;
-            case 'p':
+            case keybinds['global-new']:
                 e.preventDefault();
                 newProjectButton.click();
                 break;
@@ -3208,20 +3225,23 @@ document.addEventListener('keydown', (e) => {
 
     let newTool = null;
     switch (key) {
-        case 'd':
+        case keybinds['tool-draw']:
             newTool = 'draw';
             break;
-        case 'x':
+        case keybinds['tool-splice']:
             newTool = 'splice';
             break;
-        case 'e':
+        case keybinds['tool-erase']:
             newTool = 'erase';
             break;
-        case 's':
+        case keybinds['tool-select']:
             newTool = 'select';
             break;
-        case 'g':
+        case keybinds['tool-move']:
             newTool = 'move';
+            break;
+        case keybinds['global-play']:
+            globalPlayPauseButton.click();
             break;
     }
 
@@ -3429,6 +3449,26 @@ function autosaveStateToLocalStorage() {
         }))
     };
     localStorage.setItem('chiptuned-autosave', JSON.stringify(projectData));
+};
+const debouncedAutosaveStateToLocalStorage = debounce(autosaveStateToLocalStorage, 10000);
+
+function loadKeybinds() {
+    const storedKeybinds = localStorage.getItem('chiptuned-keybinds');
+    if (storedKeybinds) {
+        try {
+            return { ...DEFAULT_KEYBINDS, ...JSON.parse(storedKeybinds) };
+        } catch {
+            return { ...DEFAULT_KEYBINDS };
+        }
+    }
+    return { ...DEFAULT_KEYBINDS };
 }
 
-const debouncedAutosaveStateToLocalStorage = debounce(autosaveStateToLocalStorage, 10000);
+function saveKeybinds() {
+    localStorage.setItem('chiptuned-keybinds', JSON.stringify(keybinds));
+}
+
+function updateKeybinds(action, newKey) {
+    keybinds[action] = newKey.toLowerCase();
+    saveKeybinds(keybinds);
+}

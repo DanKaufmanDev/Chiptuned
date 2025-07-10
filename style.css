@@ -860,3 +860,16 @@ body {
     align-items: center;
     justify-content: center;
 }
+#global-settings {
+    width: 2rem;
+    height: 2rem;
+}
+#global-settings p {
+    font-size: 2rem;
+    line-height: 1rem;
+    margin: 0;
+    padding: 0;
+    position: absolute;
+    top: 0rem;
+    right: 0.282rem;
+}

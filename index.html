@@ -32,13 +32,17 @@
                         <input type="range" id="global-progress-bar" min="0" value="0" step="0.01" class="flex-grow h-2 appearance-none cursor-pointer bpm-slider">
                         <span id="global-timestamp" class="text-lg font-bold text-white ml-4">0:00/0:00</span>
                     </div>
+                    <div id="global-seeker-controls">
+                    <button id="global-seeker-start" class="px-4 py-2 text-white font-bold transition duration-300 retro-button mx-auto"> << </button>
                     <button id="global-play-pause" class="px-4 py-2 text-white font-bold transition duration-300 retro-button mx-auto">Play</button>
+                    <button id="global-seeker-end" class="px-4 py-2 text-white font-bold transition duration-300 retro-button mx-auto"> >> </button>
+                    </div>
                 </div>
 
                 <!-- Main App Window -->
                 <div id="main-app-window" class="p-8 shadow-lg retro-container flex-grow flex flex-col">
                     
-                    <div class="controls mb-8 flex flex-row items-start justify-center">
+                    <div class="controls mb-8 flex flex-row items-start justify-center"
                         <!-- Tool Selection -->
                         <div id="sequencer-tools" class="flex flex-row flex-nowrap gap-2">
                             <button id="tool-undo" class="px-4 py-2 text-white font-bold transition duration-300 retro-button">Undo</button>
@@ -96,7 +100,8 @@
             </div>
             <!-- Tracks Panel -->
             <div id="layer-container" class="retro-container w-64 p-4 flex flex-col flex-shrink-0">
-                <h2 class="text-2xl font-bold mb-4 text-white flex justify-center">Tracks</h2>
+                <h2 class="text-2xl font-bold mb-4 text-white flex justify-center">Tracks</h2> 
+                <button id="global-settings" class="absolute right-3 top-3 px-2 py-1 text-white font-bold transition duration-300 retro-button"><p>&#x2699;</p></button>
                 <div class="pb-4 mb-4 border-b-2 border-gray-700">
                     <button id="add-layer" class="w-full px-4 py-2 text-white font-bold transition duration-300 retro-button">Add Track</button>
                 </div>
