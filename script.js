@@ -933,7 +933,7 @@ function nextNote() {
     currentColumn++;
 }
 
-function playSFX(sfx, time, duration, audioCtx, layer) {
+function playSFX(sfx, time, duration, audioCtx, destinationNode, effects) {
     console.log(`Playing SFX: ${sfx}`);
 
     const oscillator = audioCtx.createOscillator();
@@ -972,7 +972,7 @@ function playSFX(sfx, time, duration, audioCtx, layer) {
     // Add more SFX implementations here
 
     oscillator.connect(gainNode);
-    gainNode.connect(layer.inputNode || layer.gainNode);
+    gainNode.connect(destinationNode);
 
     if (sfx !== 'explosion') { // Only start oscillator if not using noise for explosion
         oscillator.start(time);
@@ -980,36 +980,38 @@ function playSFX(sfx, time, duration, audioCtx, layer) {
     }
 }
 
-function playInstrument(instrument, frequency, time, duration, audioCtx, layer, effects) {
+function playInstrument(instrument, frequency, time, duration, audioCtx, destinationNode, effects) {
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
     const { attack, decay, sustain, release } = effects.adsr;
     const { rate, depth, waveform } = effects.lfo;
+    const startTime = Math.max(0, time);
 
-    oscillator.frequency.setValueAtTime(frequency, time);
+    oscillator.frequency.setValueAtTime(frequency, startTime);
 
     // LFO for vibrato
     if (depth > 0) {
         const lfo = audioCtx.createOscillator();
         lfo.type = waveform;
-        lfo.frequency.setValueAtTime(rate, time);
+        lfo.frequency.setValueAtTime(rate, startTime);
 
         const lfoGain = audioCtx.createGain();
-        lfoGain.gain.setValueAtTime(depth, time);
+        lfoGain.gain.setValueAtTime(depth, startTime);
 
         lfo.connect(lfoGain);
         lfoGain.connect(oscillator.frequency);
 
-        lfo.start(time);
-        lfo.stop(time + duration + release); // LFO continues slightly after note ends
+        lfo.start(startTime);
+        lfo.stop(startTime + duration + release); // LFO continues slightly after note ends
     }
 
-    // ADSR envelope
-    gainNode.gain.setValueAtTime(0, time);
-    gainNode.gain.linearRampToValueAtTime(1, time + attack);
-    gainNode.gain.linearRampToValueAtTime(sustain, time + attack + decay);
-    gainNode.gain.setValueAtTime(sustain, time + duration - release);
-    gainNode.gain.linearRampToValueAtTime(0, time + duration);
+    // Corrected ADSR envelope
+    const noteEndTime = startTime + duration;
+    gainNode.gain.setValueAtTime(0, startTime);
+    gainNode.gain.linearRampToValueAtTime(1, startTime + attack);
+    gainNode.gain.linearRampToValueAtTime(sustain, startTime + attack + decay);
+    gainNode.gain.setValueAtTime(sustain, noteEndTime);
+    gainNode.gain.linearRampToValueAtTime(0, noteEndTime + release);
 
 
     if (instrument === 'piano') {
@@ -1019,15 +1021,15 @@ function playInstrument(instrument, frequency, time, duration, audioCtx, layer, 
         // Add a second oscillator for a richer organ sound
         const oscillator2 = audioCtx.createOscillator();
         oscillator2.type = 'sine';
-        oscillator2.frequency.setValueAtTime(frequency * 2, time); // Octave higher
+        oscillator2.frequency.setValueAtTime(frequency * 2, startTime); // Octave higher
         oscillator2.connect(gainNode);
-        oscillator2.start(time);
-        oscillator2.stop(time + duration);
+        oscillator2.start(startTime);
+        oscillator2.stop(noteEndTime + release);
     } else if (instrument === 'synth_lead') {
         oscillator.type = 'sawtooth';
     } else if (instrument === 'bass') {
         oscillator.type = 'square';
-        oscillator.frequency.setValueAtTime(frequency / 2, time); // Lower octave for bass
+        oscillator.frequency.setValueAtTime(frequency / 2, startTime); // Lower octave for bass
     } else if (instrument === 'flute') {
         oscillator.type = 'sine'; // Pure tone
     } else if (instrument === 'trumpet') {
@@ -1037,26 +1039,26 @@ function playInstrument(instrument, frequency, time, duration, audioCtx, layer, 
         // Add vibrato for strings
         const vibrato = audioCtx.createOscillator();
         vibrato.type = 'sine';
-        vibrato.frequency.setValueAtTime(5, time); // 5 Hz vibrato
+        vibrato.frequency.setValueAtTime(5, startTime); // 5 Hz vibrato
         const vibratoGain = audioCtx.createGain();
-        vibratoGain.gain.setValueAtTime(frequency * 0.02, time); // Small frequency deviation
+        vibratoGain.gain.setValueAtTime(frequency * 0.02, startTime); // Small frequency deviation
         vibrato.connect(vibratoGain);
         vibratoGain.connect(oscillator.frequency);
-        vibrato.start(time);
-        vibrato.stop(time + duration);
+        vibrato.start(startTime);
+        vibrato.stop(noteEndTime + release);
     }
     // Add more instrument implementations here
 
     oscillator.connect(gainNode);
-    gainNode.connect(layer.inputNode || layer.gainNode);
+    gainNode.connect(destinationNode);
 
-    oscillator.start(time);
-    oscillator.stop(time + duration);
+    oscillator.start(startTime);
+    oscillator.stop(noteEndTime + release);
 
     return { oscillator, gainNode };
 }
 
-function playSound(waveform, frequency, time, duration, audioCtx, layer, effects) {
+function playSound(waveform, frequency, time, duration, audioCtx, destinationNode, effects) {
     const startTime = Math.max(0, time);
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
@@ -1082,17 +1084,20 @@ function playSound(waveform, frequency, time, duration, audioCtx, layer, effects
         lfo.stop(startTime + duration + release);
     }
 
+    // Corrected ADSR Envelope
+    const noteEndTime = startTime + duration;
     gainNode.gain.setValueAtTime(0, startTime);
     gainNode.gain.linearRampToValueAtTime(1, startTime + attack);
     gainNode.gain.linearRampToValueAtTime(sustain, startTime + attack + decay);
-    gainNode.gain.setValueAtTime(sustain, startTime + duration - release);
-    gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
+    gainNode.gain.setValueAtTime(sustain, noteEndTime);
+    gainNode.gain.linearRampToValueAtTime(0, noteEndTime + release);
+
 
     oscillator.connect(gainNode);
-    gainNode.connect(layer.inputNode || layer.gainNode);
+    gainNode.connect(destinationNode);
 
     oscillator.start(startTime);
-    oscillator.stop(startTime + duration);
+    oscillator.stop(noteEndTime + release); // Stop after the release phase
 
     return { oscillator, gainNode };
 }
@@ -1139,13 +1144,16 @@ function scheduleNote(beatNumber, time) {
                 const noteDurationInSeconds = noteDurationInBeats * (60.0 / parseFloat(bpmInput.value));
 
                 const noteFrequency = baseFrequencies[i] * Math.pow(2, layer.octave);
+                
+                // Correctly pass the destination node for live playback
+                const destinationNode = layer.inputNode || layer.gainNode;
 
                 if (layer.sfx) {
-                    playSFX(layer.sfx, time, noteDurationInSeconds, audioContext, layer, layer.effects);
+                    playSFX(layer.sfx, time, noteDurationInSeconds, audioContext, destinationNode, layer.effects);
                 } else if (layer.instrument) {
-                    playInstrument(layer.instrument, noteFrequency, time, noteDurationInSeconds, audioContext, layer, layer.effects);
+                    playInstrument(layer.instrument, noteFrequency, time, noteDurationInSeconds, audioContext, destinationNode, layer.effects);
                 } else {
-                    playSound(layer.waveform, noteFrequency, time, noteDurationInSeconds, audioContext, layer, layer.effects);
+                    playSound(layer.waveform, noteFrequency, time, noteDurationInSeconds, audioContext, destinationNode, layer.effects);
                 }
             });
         }
@@ -2329,6 +2337,12 @@ newProjectButton.addEventListener('click', async () => {
 });
 
 randomGridButton.addEventListener('click', () => {
+    // Add a guard clause to ensure there's an active layer
+    if (activeLayerIndex === -1 || !layers[activeLayerIndex]) {
+        console.error("Cannot randomize: No active layer selected.");
+        return;
+    }
+
     // --- 1. Randomize settings ---
     // Random Waveform
     const randomWaveformIndex = Math.floor(Math.random() * waveforms.length);
@@ -2721,19 +2735,81 @@ async function exportAudio(format) {
 
 async function renderAudioToBuffer(totalDuration) {
     const offlineAudioContext = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
-        2, // Number of channels (stereo)
-        Math.ceil(audioContext.sampleRate * totalDuration), // Use Math.ceil for safety
-        audioContext.sampleRate // Sample rate
+        2,
+        Math.ceil(audioContext.sampleRate * totalDuration),
+        audioContext.sampleRate
     );
+
+    // Add the worklet module once at the beginning if needed.
+    if (isAudioWorkletReady && offlineAudioContext.audioWorklet) {
+        try {
+            await offlineAudioContext.audioWorklet.addModule('bitcrusher-processor.js');
+        } catch (e) {
+            console.error("Error adding AudioWorklet module to offline context:", e);
+        }
+    }
 
     const offlineMasterGain = offlineAudioContext.createGain();
     offlineMasterGain.gain.value = masterGainNode.gain.value;
     offlineMasterGain.connect(offlineAudioContext.destination);
 
-    layers.forEach(layer => {
-        const offlineLayerGain = offlineAudioContext.createGain();
-        offlineLayerGain.gain.value = layer.gainNode.gain.value;
-        offlineLayerGain.connect(offlineMasterGain);
+    for (const layer of layers) {
+        // Create a complete, isolated audio graph for each layer, mimicking the live graph.
+        const layerGain = offlineAudioContext.createGain();
+        layerGain.gain.value = layer.isMuted ? 0 : layer.gainValue; // Respect mute state
+        layerGain.connect(offlineMasterGain);
+
+        const pannerNode = offlineAudioContext.createStereoPanner();
+        pannerNode.pan.value = layer.effects.pan;
+        pannerNode.connect(layerGain);
+
+        const reverbOutput = offlineAudioContext.createGain();
+        reverbOutput.connect(pannerNode);
+        const reverbNode = offlineAudioContext.createConvolver();
+        const reverbBuffer = generateReverbImpulseResponse(layer.effects.reverb.decay, layer.effects.reverb.decay, false);
+        if (reverbBuffer) {
+            reverbNode.buffer = reverbBuffer;
+        }
+        const reverbWetGain = offlineAudioContext.createGain();
+        reverbWetGain.gain.value = layer.effects.reverb.mix;
+        reverbWetGain.connect(reverbNode);
+        reverbNode.connect(reverbOutput);
+        const reverbDryGain = offlineAudioContext.createGain();
+        reverbDryGain.gain.value = 1.0 - layer.effects.reverb.mix;
+        reverbDryGain.connect(reverbOutput);
+
+        const delayOutput = offlineAudioContext.createGain();
+        delayOutput.connect(reverbDryGain);
+        delayOutput.connect(reverbWetGain);
+        const delayNode = offlineAudioContext.createDelay();
+        delayNode.delayTime.value = layer.effects.delay.time;
+        const delayFeedbackGain = offlineAudioContext.createGain();
+        delayFeedbackGain.gain.value = layer.effects.delay.feedback;
+        delayNode.connect(delayFeedbackGain);
+        delayFeedbackGain.connect(delayNode);
+        const delayWetGain = offlineAudioContext.createGain();
+        delayWetGain.gain.value = layer.effects.delay.mix;
+        delayWetGain.connect(delayNode);
+        delayNode.connect(delayOutput);
+        const delayDryGain = offlineAudioContext.createGain();
+        delayDryGain.gain.value = 1.0 - layer.effects.delay.mix;
+        delayDryGain.connect(delayOutput);
+
+        let inputForOscillator;
+        if (isAudioWorkletReady && offlineAudioContext.audioWorklet) {
+            const bitcrusherNode = new AudioWorkletNode(offlineAudioContext, 'bitcrusher-processor');
+            bitcrusherNode.parameters.get('bits').value = layer.effects.bitcrusher.bits;
+            bitcrusherNode.parameters.get('frequencyReduction').value = layer.effects.bitcrusher.frequencyReduction;
+            bitcrusherNode.connect(delayDryGain);
+            bitcrusherNode.connect(delayWetGain);
+            inputForOscillator = bitcrusherNode;
+        } else {
+            // If no bitcrusher, the oscillator connects directly to the delay chain's inputs
+            const preEffectsGain = offlineAudioContext.createGain();
+            preEffectsGain.connect(delayDryGain);
+            preEffectsGain.connect(delayWetGain);
+            inputForOscillator = preEffectsGain;
+        }
 
         const layerFrequencies = [];
         for (let i = 0; i < numRows; i++) {
@@ -2746,16 +2822,17 @@ async function renderAudioToBuffer(totalDuration) {
                 const noteDuration = (note.end - note.start + 1) * (60 / parseFloat(bpmInput.value));
                 const noteFrequency = layerFrequencies[i];
 
+                // The 'layer' argument in play* functions is the destination node for the oscillator.
                 if (layer.sfx) {
-                    playSFX(layer.sfx, noteStartTime, noteDuration, offlineAudioContext, offlineLayerGain);
+                    playSFX(layer.sfx, noteStartTime, noteDuration, offlineAudioContext, inputForOscillator, layer.effects);
                 } else if (layer.instrument) {
-                    playInstrument(layer.instrument, noteFrequency, noteStartTime, noteDuration, offlineAudioContext, offlineLayerGain);
+                    playInstrument(layer.instrument, noteFrequency, noteStartTime, noteDuration, offlineAudioContext, inputForOscillator, layer.effects);
                 } else {
-                    playSound(layer.waveform, noteFrequency, noteStartTime, noteDuration, offlineAudioContext, offlineLayerGain);
+                    playSound(layer.waveform, noteFrequency, noteStartTime, noteDuration, offlineAudioContext, inputForOscillator, layer.effects);
                 }
             });
         }
-    });
+    }
 
     return offlineAudioContext.startRendering();
 }
@@ -3078,10 +3155,79 @@ function updateUndoRedoButtons() {
 }
 
 document.addEventListener('keydown', (e) => {
-    // Ctrl+A or Cmd+A for select all
-    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-        e.preventDefault(); // Prevent default browser select all
-        selectAllNotes();
+    const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+    const key = e.key.toLowerCase();
+
+    // --- Modifier Key Shortcuts (Cmd/Ctrl) ---
+    if (e.metaKey || e.ctrlKey) {
+        if (isInputFocused) return;
+        
+        switch (key) {
+            case 's':
+                e.preventDefault();
+                saveProject();
+                break;
+            case 'o':
+                e.preventDefault();
+                loadProjectButton.click();
+                break;
+            case 'a':
+                e.preventDefault();
+                selectAllNotes();
+                break;
+            case 'z':
+                e.preventDefault();
+                if (e.shiftKey) {
+                    redo();
+                } else {
+                    undo();
+                }
+                break;
+            case 'c':
+                e.preventDefault();
+                copySelectedNotes();
+                break;
+            case 'x':
+                e.preventDefault();
+                cutSelectedNotes();
+                break;
+            case 'v':
+                e.preventDefault();
+                pasteNotes();
+                break;
+            case 'p':
+                e.preventDefault();
+                newProjectButton.click();
+                break;
+        }
+        return;
+    }
+
+    // --- Tool-switching Shortcuts (no modifier) ---
+    if (isInputFocused) return;
+
+    let newTool = null;
+    switch (key) {
+        case 'd':
+            newTool = 'draw';
+            break;
+        case 'x':
+            newTool = 'splice';
+            break;
+        case 'e':
+            newTool = 'erase';
+            break;
+        case 's':
+            newTool = 'select';
+            break;
+        case 'g':
+            newTool = 'move';
+            break;
+    }
+
+    if (newTool && activeTool !== newTool) {
+        activeTool = newTool;
+        renderToolButtons();
     }
 });
 
@@ -3121,29 +3267,6 @@ async function init() {
     document.getElementById('tool-copy').addEventListener('click', copySelectedNotes);
     document.getElementById('tool-cut').addEventListener('click', cutSelectedNotes);
     document.getElementById('tool-paste').addEventListener('click', pasteNotes);
-
-    document.addEventListener('keydown', (e) => {
-        // Check if a text input is focused
-        const isInputFocused = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
-
-        if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-            if (isInputFocused) return; // Don't interfere with standard copy-paste in text fields
-            e.preventDefault();
-            copySelectedNotes();
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
-            if (isInputFocused) return; // Don't interfere with standard copy-paste in text fields
-            e.preventDefault();
-            cutSelectedNotes();
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-            if (isInputFocused) return; // Don't interfere with standard copy-paste in text fields
-            e.preventDefault();
-            pasteNotes();
-        }
-    });
 
     saveProjectButton.addEventListener('click', saveProject);
     loadProjectButton.addEventListener('click', () => {
@@ -3263,41 +3386,6 @@ async function init() {
         renderLayerList();
     });
 
-    document.addEventListener('keydown', (e) => {
-        const key = e.key.toLowerCase();
-        let newTool = null;
-
-        if (e.ctrlKey || e.metaKey) {
-            if (e.shiftKey && key === 'z') {
-                redo();
-            } else if (key === 'z') {
-                undo();
-            }
-        } else {
-            switch (key) {
-                case 'd':
-                    newTool = 'draw';
-                    break;
-                case 'x':
-                    newTool = 'splice';
-                    break;
-                case 'e':
-                    newTool = 'erase';
-                    break;
-                case 's':
-                    newTool = 'select';
-                    break;
-                case 'g':
-                    newTool = 'move';
-                    break;
-            }
-
-            if (newTool && activeTool !== newTool) {
-                activeTool = newTool;
-                renderToolButtons();
-            }
-        }
-    });
     const autosaved = localStorage.getItem('chiptuned-autosave');
     if (autosaved) {
         try {
