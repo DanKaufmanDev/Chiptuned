@@ -1057,41 +1057,42 @@ function playInstrument(instrument, frequency, time, duration, audioCtx, layer, 
 }
 
 function playSound(waveform, frequency, time, duration, audioCtx, layer, effects) {
+    const startTime = Math.max(0, time);
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
     const { attack, decay, sustain, release } = effects.adsr;
     const { rate, depth, waveform: lfoWaveform } = effects.lfo;
 
     oscillator.type = waveform;
-    oscillator.frequency.setValueAtTime(frequency, time);
+    oscillator.frequency.setValueAtTime(frequency, startTime);
 
     // LFO for vibrato
     if (depth > 0) {
         const lfo = audioCtx.createOscillator();
         lfo.type = lfoWaveform;
-        lfo.frequency.setValueAtTime(rate, time);
+        lfo.frequency.setValueAtTime(rate, startTime);
 
         const lfoGain = audioCtx.createGain();
-        lfoGain.gain.setValueAtTime(depth, time);
+        lfoGain.gain.setValueAtTime(depth, startTime);
 
         lfo.connect(lfoGain);
         lfoGain.connect(oscillator.frequency);
 
-        lfo.start(time);
-        lfo.stop(time + duration + release);
+        lfo.start(startTime);
+        lfo.stop(startTime + duration + release);
     }
 
-    gainNode.gain.setValueAtTime(0, time);
-    gainNode.gain.linearRampToValueAtTime(1, time + attack);
-    gainNode.gain.linearRampToValueAtTime(sustain, time + attack + decay);
-    gainNode.gain.setValueAtTime(sustain, time + duration - release);
-    gainNode.gain.linearRampToValueAtTime(0, time + duration);
+    gainNode.gain.setValueAtTime(0, startTime);
+    gainNode.gain.linearRampToValueAtTime(1, startTime + attack);
+    gainNode.gain.linearRampToValueAtTime(sustain, startTime + attack + decay);
+    gainNode.gain.setValueAtTime(sustain, startTime + duration - release);
+    gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
 
     oscillator.connect(gainNode);
     gainNode.connect(layer.inputNode || layer.gainNode);
 
-    oscillator.start(time);
-    oscillator.stop(time + duration);
+    oscillator.start(startTime);
+    oscillator.stop(startTime + duration);
 
     return { oscillator, gainNode };
 }
@@ -2434,7 +2435,8 @@ async function saveProject() {
             sfx: layer.sfx,
             octave: layer.octave,
             isMuted: layer.isMuted,
-            gainValue: layer.gainValue
+            gainValue: layer.gainValue,
+            effects: layer.effects
         }))
     };
 
@@ -2488,36 +2490,123 @@ async function loadProject(data) {
 
         // Clear existing layers and their gain nodes
         layers.forEach(layer => {
-            if (layer.gainNode) {
-                layer.gainNode.disconnect();
-            }
+            // Disconnect all nodes before clearing
+            if (layer.gainNode) layer.gainNode.disconnect();
+            if (layer.reverbNode) layer.reverbNode.disconnect();
+            if (layer.reverbWetGain) layer.reverbWetGain.disconnect();
+            if (layer.reverbDryGain) layer.reverbDryGain.disconnect();
+            if (layer.delayNode) layer.delayNode.disconnect();
+            if (layer.delayFeedbackGain) layer.delayFeedbackGain.disconnect();
+            if (layer.delayWetGain) layer.delayWetGain.disconnect();
+            if (layer.delayDryGain) layer.delayDryGain.disconnect();
+            if (layer.bitcrusherNode) layer.bitcrusherNode.disconnect();
+            if (layer.pannerNode) layer.pannerNode.disconnect();
         });
         layers = [];
+
 
         // Load master gain
         if (typeof loadedData.masterGain === 'number') {
             masterGainNode.gain.value = loadedData.masterGain;
         }
 
-        // Recreate layers with their gain nodes
+        // Recreate layers with their audio nodes and ensure effects are present
         loadedData.layers.forEach(loadedLayer => {
-            const newGainNode = audioContext.createGain();
-            newGainNode.connect(masterGainNode);
-            
-            // Set gain value, with a default for older projects
+            // Ensure effects property exists, defaulting if necessary
+            if (!loadedLayer.effects) {
+                loadedLayer.effects = JSON.parse(JSON.stringify(defaultWaveformEffects[loadedLayer.waveform || 'square']));
+            }
+
+            // Recreate gain node
+            const gainNode = audioContext.createGain();
             const gainValue = typeof loadedLayer.gainValue === 'number' ? loadedLayer.gainValue : 0.7;
-            newGainNode.gain.value = gainValue;
+            gainNode.gain.value = gainValue;
+
+            // Recreate effects nodes
+            const reverbNode = audioContext.createConvolver();
+            const reverbWetGain = audioContext.createGain();
+            const reverbDryGain = audioContext.createGain();
+            const delayNode = audioContext.createDelay();
+            const delayFeedbackGain = audioContext.createGain();
+            const delayWetGain = audioContext.createGain();
+            const delayDryGain = audioContext.createGain();
+            const pannerNode = audioContext.createStereoPanner();
+
+            // Bitcrusher node (if using AudioWorklet)
+            let bitcrusherNode = null;
+            if (isAudioWorkletReady) {
+                bitcrusherNode = createBitcrusherNode(loadedLayer); // Pass loadedLayer to use its effects
+            }
+
+            // Build the audio chain (same as in createNewLayer and restoreState)
+            const inputNode = bitcrusherNode || gainNode;
+
+            // Delay connections
+            const sourceNodeForDelay = bitcrusherNode || gainNode;
+            sourceNodeForDelay.connect(delayDryGain);
+            sourceNodeForDelay.connect(delayWetGain);
+            delayWetGain.connect(delayNode);
+            delayNode.connect(delayFeedbackGain);
+            delayFeedbackGain.connect(delayNode);
+
+            const delayOutput = audioContext.createGain();
+            delayDryGain.connect(delayOutput);
+            delayNode.connect(delayOutput);
+
+            // Reverb connections
+            delayOutput.connect(reverbDryGain);
+            delayOutput.connect(reverbWetGain);
+            reverbWetGain.connect(reverbNode);
+
+            const reverbOutput = audioContext.createGain();
+            reverbDryGain.connect(reverbOutput);
+            reverbNode.connect(reverbOutput);
+
+            // Connect reverb output to panner
+            reverbOutput.connect(pannerNode);
+
+            // Connect panner to layer gain
+            pannerNode.connect(gainNode);
+
+            // Connect layer gain to master gain
+            gainNode.connect(masterGainNode);
+
+            // Set initial effect parameters using the loaded effects data
+            reverbWetGain.gain.value = loadedLayer.effects.reverb.mix;
+            reverbDryGain.gain.value = 1.0 - loadedLayer.effects.reverb.mix;
+            delayWetGain.gain.value = loadedLayer.effects.delay.mix;
+            delayDryGain.gain.value = 1.0 - loadedLayer.effects.delay.mix;
+            delayFeedbackGain.gain.value = loadedLayer.effects.delay.feedback;
+            delayNode.delayTime.value = loadedLayer.effects.delay.time;
+            // Recreate reverb buffer - might need to make generateReverbImpulseResponse sync or handle async
+            // For now, assuming it's sync or the buffer can be set later
+            reverbNode.buffer = generateReverbImpulseResponse(loadedLayer.effects.reverb.decay, loadedLayer.effects.reverb.decay, false);
+            pannerNode.pan.value = loadedLayer.effects.pan;
+
 
             layers.push({
                 ...loadedLayer,
-                gainNode: newGainNode,
-                gainValue: gainValue // Ensure gainValue is explicitly set on the new layer object
+                gainNode: gainNode,
+                gainValue: gainValue,
+                reverbNode: reverbNode,
+                reverbWetGain: reverbWetGain,
+                reverbDryGain: reverbDryGain,
+                delayNode: delayNode,
+                delayFeedbackGain: delayFeedbackGain,
+                delayWetGain: delayWetGain,
+                delayDryGain: delayDryGain,
+                bitcrusherNode: bitcrusherNode,
+                pannerNode: pannerNode,
+                inputNode: inputNode // Assign the start of the chain
             });
         });
 
         activeLayerIndex = 0;
         renderActiveLayer();
         renderLayerList();
+
+        const loadedActiveLayerIndex = loadedData.activeLayerIndex !== undefined ? loadedData.activeLayerIndex : 0;
+        switchLayer(loadedActiveLayerIndex, true);
 
         // Load BPM
         if (typeof loadedData.bpm === 'string' || typeof loadedData.bpm === 'number') {
@@ -3247,7 +3336,8 @@ function autosaveStateToLocalStorage() {
             sfx: layer.sfx,
             octave: layer.octave,
             isMuted: layer.isMuted,
-            gainValue: layer.gainValue
+            gainValue: layer.gainValue,
+            effects: layer.effects
         }))
     };
     localStorage.setItem('chiptuned-autosave', JSON.stringify(projectData));
