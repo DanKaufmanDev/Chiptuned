@@ -79,13 +79,13 @@ let masterGainNode = audioContext.createGain(); // Master Gain Node
 const baseNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const baseFrequencies = [16.35, 17.32, 18.35, 19.45, 20.60, 21.83, 23.12, 24.50, 25.96, 27.50, 29.14, 30.87]; // C0 to B0
 
-let currentOctave = 4; // Starting octave
+let currentOctave = 4; 
 let notes = [];
 let frequencies = [];
-const numRows = 12; // Chromatic scale
+const numRows = 12; 
 const numCols = 32;
 
-let grid = Array(numRows).fill(null).map(() => []); // Each row will store an array of note objects {start: col, end: col}
+let grid = Array(numRows).fill(null).map(() => []); 
 let musicTimeout;
 let lastHighlightedColumn = -1;
 let playingNodes = [];
@@ -93,16 +93,15 @@ let playingNodes = [];
 let isDragging = false;
 let dragStartCol = -1;
 let dragStartRow = -1;
-let currentNote = null; // Stores the note object being dragged/modified
+let currentNote = null; 
 let anchorCol = -1;
 let isExtendingSelection = false;
-let selectionDragData = []; // To store original state of selected notes during drag
-let draggedEdgeIsStart = false;
+let selectionDragData = []; 
 let activeTool = 'draw';
-let currentProjectFileName = 'my_chiptuned_project.cht'; // New global variable to store the current project filename
-let totalSequenceDuration = 0; // Total duration of the sequence in seconds
-let playbackStartTime = 0; // AudioContext time when playback started
-let currentPlaybackTime = 0; // Current playback time in seconds
+let currentProjectFileName = 'my_chiptuned_project.cht'; 
+let totalSequenceDuration = 0; 
+let playbackStartTime = 0; 
+let currentPlaybackTime = 0; 
 
 let selectionStartCol = -1;
 let selectionStartRow = -1;
@@ -115,8 +114,7 @@ let moveStartRow = -1;
 let currentlySelectedNotes = [];
 let gridOffset = 0;
 let hasUnsavedChanges = false;
-let clipboard = null; // To store copied notes
-
+let clipboard = null; 
 
 function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
@@ -624,6 +622,7 @@ function toggleSingleNote(row, col) {
         renderLayerList();
         updateTotalDurationAndDisplay();
         saveState();
+        debouncedAutosaveStateToLocalStorage();
     });
 }
 
@@ -645,6 +644,7 @@ function eraseSelectedNotes() {
         renderLayerList();
         updateTotalDurationAndDisplay();
         saveState();
+        debouncedAutosaveStateToLocalStorage();
     });
     console.log("Erased selected notes.");
 }
@@ -659,6 +659,7 @@ function eraseNote(row, col) {
             renderLayerList();
             updateTotalDurationAndDisplay();
             saveState();
+            debouncedAutosaveStateToLocalStorage();
         });
     }
 }
@@ -933,9 +934,6 @@ function nextNote() {
 }
 
 function playSFX(sfx, time, duration, audioCtx, layer) {
-    // Implement SFX playback based on the sfx type
-    // This is a placeholder. Actual SFX implementation would involve
-    // loading audio files or generating specific waveforms/envelopes.
     console.log(`Playing SFX: ${sfx}`);
 
     const oscillator = audioCtx.createOscillator();
@@ -1584,6 +1582,7 @@ function handleMouseUp() {
         renderLayerList();
         updateTotalDurationAndDisplay();
         saveState();
+        debouncedAutosaveStateToLocalStorage();
     });
 }
 
@@ -1702,7 +1701,7 @@ function copySelectedNotes() {
             duration: selected.noteRef.end - selected.noteRef.start
         };
     });
-
+    debouncedAutosaveStateToLocalStorage();
     console.log("Notes copied to clipboard:", clipboard);
     // Optional: provide visual feedback to the user
 }
@@ -1729,6 +1728,7 @@ function cutSelectedNotes() {
         renderLayerList();
         updateTotalDurationAndDisplay();
         saveState();
+        debouncedAutosaveStateToLocalStorage();
     });
     console.log("Notes cut to clipboard.");
 }
@@ -1777,6 +1777,7 @@ function pasteNotes() {
         renderLayerList();
         updateTotalDurationAndDisplay();
         saveState();
+        debouncedAutosaveStateToLocalStorage();
     });
     console.log("Notes pasted from clipboard.");
 }
@@ -1892,6 +1893,7 @@ function handleMoveMouseUp(e) {
         renderLayerList();
         updateTotalDurationAndDisplay();
         saveState();
+        debouncedAutosaveStateToLocalStorage();
     });
 }
 
@@ -1988,6 +1990,7 @@ function closeEffectsWindow() {
     effectsWindowOverlay.classList.add('hidden');
     currentEditingLayer = null;
     saveState(); // Save changes when closing
+    debouncedAutosaveStateToLocalStorage();
 }
 
 effectsWindowClose.addEventListener('click', closeEffectsWindow);
@@ -2028,15 +2031,6 @@ if (tooltipElement) {
         }
     });
 }
-//         // Deep copy the default effects to the layer
-//         currentEditingLayer.effects = JSON.parse(JSON.stringify(defaultWaveformEffects[waveform]));
-            
-//         // Update the UI sliders
-//         populateEffectsWindow(currentEditingLayer);
-            
-//         // Apply the changes to the audio graph
-//         updateLayerEffects(currentEditingLayer);
-// });
 
 // Add event listeners to effect controls
 document.getElementById('attack-slider').addEventListener('input', (e) => currentEditingLayer.effects.adsr.attack = parseFloat(e.target.value));
@@ -2113,6 +2107,7 @@ function renderBusMixer() {
     masterVolumeSlider.addEventListener('change', (e) => {
         masterLabel.textContent = 'Master';
         saveState();
+        debouncedAutosaveStateToLocalStorage();
     });
 
     // Track Buses
@@ -2151,6 +2146,7 @@ function renderBusMixer() {
         trackVolumeSlider.addEventListener('change', (e) => {
             trackLabel.textContent = layer.name;
             saveState();
+            debouncedAutosaveStateToLocalStorage();
         });
     });
 }
@@ -2239,6 +2235,7 @@ clearGridButton.addEventListener('click', () => {
     currentPlaybackTime = 0;
     updateTotalDurationAndDisplay();
     saveState();
+    debouncedAutosaveStateToLocalStorage();
 })
 
 function resetProject() {
@@ -2395,6 +2392,7 @@ randomGridButton.addEventListener('click', () => {
         renderActiveLayer();
         renderLayerList();
         saveState();
+        debouncedAutosaveStateToLocalStorage();
     }, 0);
 
     // --- 4. Set random BPM ---
@@ -2408,6 +2406,7 @@ octaveDownButton.addEventListener('click', () => {
     if (layers[activeLayerIndex].octave > 0) {
         layers[activeLayerIndex].octave--;
         renderActiveLayer(); // Re-render active layer to update notes and grid
+        debouncedAutosaveStateToLocalStorage();
     }
 });
 
@@ -2415,6 +2414,7 @@ octaveUpButton.addEventListener('click', () => {
     if (layers[activeLayerIndex].octave < 9) {
         layers[activeLayerIndex].octave++;
         renderActiveLayer(); // Re-render active layer to update notes and grid
+        debouncedAutosaveStateToLocalStorage();
     }
 });
 
@@ -2834,7 +2834,6 @@ function saveState() {
     history.push(state);
     historyIndex++;
     updateUndoRedoButtons();
-    debouncedAutosaveStateToLocalStorage()
 }
 
 function undo() {
@@ -2876,6 +2875,7 @@ function spliceNote(row, col) {
                 renderLayerList();
                 updateTotalDurationAndDisplay();
                 saveState();
+                debouncedAutosaveStateToLocalStorage();
             });
         }
     }
@@ -2893,12 +2893,87 @@ function restoreState(state) {
     activeLayerIndex = state.activeLayerIndex;
     masterGainNode.gain.value = state.masterGain;
 
-    // Re-create gain nodes after loading the state
-    layers.forEach(layer => {
-        const newGainNode = audioContext.createGain();
-        newGainNode.connect(masterGainNode);
-        layer.gainNode = newGainNode;
-        layer.gainNode.gain.value = layer.gainValue;
+    // Re-create all audio nodes for each layer
+    layers.forEach((layer, i) => {
+        // Recreate gain node
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = layer.gainValue;
+        gainNode.connect(masterGainNode);
+
+        // Recreate effects nodes
+        const reverbNode = audioContext.createConvolver();
+        const reverbWetGain = audioContext.createGain();
+        const reverbDryGain = audioContext.createGain();
+        const delayNode = audioContext.createDelay();
+        const delayFeedbackGain = audioContext.createGain();
+        const delayWetGain = audioContext.createGain();
+        const delayDryGain = audioContext.createGain();
+        const pannerNode = audioContext.createStereoPanner();
+
+        // Bitcrusher node (if using AudioWorklet)
+        let bitcrusherNode = null;
+        if (isAudioWorkletReady) {
+            bitcrusherNode = createBitcrusherNode(layer);
+        }
+
+        // Build the audio chain
+        const inputNode = bitcrusherNode || gainNode;
+
+        // Delay connections
+        if (bitcrusherNode) {
+            bitcrusherNode.connect(delayDryGain);
+            bitcrusherNode.connect(delayWetGain);
+        } else {
+            gainNode.connect(delayDryGain);
+            gainNode.connect(delayWetGain);
+        }
+        delayWetGain.connect(delayNode);
+        delayNode.connect(delayFeedbackGain);
+        delayFeedbackGain.connect(delayNode);
+
+        const delayOutput = audioContext.createGain();
+        delayDryGain.connect(delayOutput);
+        delayNode.connect(delayOutput);
+
+        // Reverb connections
+        delayOutput.connect(reverbDryGain);
+        delayOutput.connect(reverbWetGain);
+        reverbWetGain.connect(reverbNode);
+
+        const reverbOutput = audioContext.createGain();
+        reverbDryGain.connect(reverbOutput);
+        reverbNode.connect(reverbOutput);
+
+        // Connect reverb output to panner
+        reverbOutput.connect(pannerNode);
+
+        // Connect panner to layer gain
+        pannerNode.connect(gainNode);
+
+        // Set initial effect parameters
+        reverbWetGain.gain.value = layer.effects.reverb.mix;
+        reverbDryGain.gain.value = 1.0 - layer.effects.reverb.mix;
+        delayWetGain.gain.value = layer.effects.delay.mix;
+        delayDryGain.gain.value = 1.0 - layer.effects.delay.mix;
+        delayFeedbackGain.gain.value = layer.effects.delay.feedback;
+        delayNode.delayTime.value = layer.effects.delay.time;
+        reverbNode.buffer = generateReverbImpulseResponse(layer.effects.reverb.decay, layer.effects.reverb.decay, false);
+        pannerNode.pan.value = layer.effects.pan;
+
+        // Assign all nodes back to the layer
+        Object.assign(layer, {
+            gainNode,
+            reverbNode,
+            reverbWetGain,
+            reverbDryGain,
+            delayNode,
+            delayFeedbackGain,
+            delayWetGain,
+            delayDryGain,
+            bitcrusherNode,
+            pannerNode,
+            inputNode
+        });
     });
 
     renderActiveLayer();
@@ -2912,14 +2987,6 @@ function updateUndoRedoButtons() {
     undoButton.disabled = historyIndex === 0;
     redoButton.disabled = historyIndex === history.length - 1;
 }
-
-document.addEventListener('keydown', (e) => {
-    // Ctrl+A or Cmd+A for select all
-    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-        e.preventDefault(); // Prevent default browser select all
-        selectAllNotes();
-    }
-});
 
 document.addEventListener('keydown', (e) => {
     // Ctrl+A or Cmd+A for select all
@@ -2956,6 +3023,7 @@ async function init() {
     addLayerButton.addEventListener('click', () => {
         addLayer();
         saveState();
+        debouncedAutosaveStateToLocalStorage();
     });
 
     undoButton.addEventListener('click', undo);
@@ -3002,7 +3070,7 @@ async function init() {
                 try {
                     const loadedData = JSON.parse(event.target.result);
                     loadProject(loadedData);
-                    saveState(); // Save the loaded state
+                    saveState();
                 } catch (error) {
                     console.error('Error loading project:', error);
                     alert('Could not load project file. It may be corrupt.');
