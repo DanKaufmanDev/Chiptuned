@@ -3548,7 +3548,7 @@ function populateKeybindSettings() {
             input.value = currentValue;
         }
 
-        input.classList.add('w-auto', 'text-center', 'bg-gray-700', 'text-white', 'font-bold', 'rounded', 'px-2');
+        input.classList.add('w-96', 'text-center', 'bg-gray-700', 'text-white', 'font-bold', 'rounded', 'px-2');
         input.dataset.action = action;
 
         if (isModifierAction) {
