@@ -17,52 +17,59 @@ After refining the workflow for internal use, I realized this tool could help ot
 👉 [(add your live link here)]
 
 ## 🎛️ Features
-- 🎹 Step sequencer with pattern editing
-- 🔊 Built-in audio engine with:  
-- Square, Sine, Sawtooth, and Triangle waveforms
-- ADSR envelopes
-- Bitcrusher, reverb, delay, and panning
-- LFO modulation 
-- Per-channel effect chains
-- Pattern-based sequencing with mute/solo controls
-- Full undo/redo system with autosave
-- Save/load as .cht project files
-- Autosave to browser storage
-- Theme switching (planned/future)
-- Arrangement timeline with automation and audio clips (planned)
-- OS-specific keyboard shortcuts for Mac & Windows/Linux
-- Built entirely with vanilla JS + Web Audio API (no frameworks)
+- 🎹 Multi-layer step sequencer with pattern editing
+- 🔊 Built-in audio engine with:
+    - Square, Sine, Sawtooth, and Triangle waveforms
+    - A library of pre-made instruments and SFX
+    - ADSR envelopes
+    - Bitcrusher, reverb, delay, and panning
+    - LFO modulation
+    - Per-channel effect chains
+- 🎚️ Bus mixer for individual track control
+- 📝 Full undo/redo system with autosave
+- 💾 Save/load as `.cht` project files
+- ⚙️ Customizable keyboard shortcuts
+- 🎵 Export to `.wav` and `.mp3`
+- 🎨 Theme switching (planned)
 
-## 🎹 Example Workflow
-1. Create patterns and assign instruments to channels.
-2. Add effects (ADSR, reverb, bitcrusher, etc.) to shape your sound.
-3. Export your track as an MP3 or WAV file.
-4. Arrange your patterns into a complete song (future release).
+## 🏁 Getting Started
+1.  **Add a track:** Click the "Add Track" button to create a new layer.
+2.  **Select a sound:** Choose a waveform, instrument, or SFX from the "Sounds" panel.
+3.  **Draw notes:** Use the "Draw" tool to add notes to the sequencer grid.
+4.  **Add effects:** Open the effects window from the bus mixer to add and tweak effects.
+5.  **Play your creation:** Use the global play/pause button or the spacebar to listen to your track.
 
-## ⌨️ Keyboard Shortcuts 
-*(Cross-platform: MacOS & Windows/Linux)* *(Modular keybinds planned)* 
+## ⌨️ Keyboard Shortcuts
+Chiptuned features customizable keyboard shortcuts for a faster workflow. You can view and edit the keybinds in the settings menu.
 
-| Window/Linux     | MacOS           | Action      |
-| ---------------- | --------------- | ----------- |
-| Ctrl + O         | Cmd + O         | Open File   |
-| Ctrl + S         | Cmd + S         | Save File   |
-| Ctrl + P         | Cmd + P         | New Project |
-| Ctrl + A         | Cmd + A         | Select All  |
-| Ctrl + Z         | Cmd + Z         | Undo        |
-| Ctrl + Shift + Z | Cmd + Shift + Z | Redo        |
-| Ctrl + X         | Cmd + X         | Cut         |
-| Ctrl + C         | Cmd + C         | Copy        |
-| Ctrl + V         | Cmd + V         | Paste       |
-| D                | D               | Draw        |
-| X                | X               | Splice      |
-| E                | E               | Erase       |
-| G                | G               | Grab        |
+**Default Shortcuts:**
+
+| Action | Windows/Linux | macOS |
+| :--- | :--- | :--- |
+| **File** | |
+| Open Project | `Ctrl` + `O` | `Cmd` + `O` |
+| Save Project | `Ctrl` + `S` | `Cmd` + `S` |
+| New Project | `Ctrl` + `P` | `Cmd` + `P` |
+| **Edit** | |
+| Undo | `Ctrl` + `Z` | `Cmd` + `Z` |
+| Redo | `Ctrl` + `Shift` + `Z` | `Cmd` + `Shift` + `Z` |
+| Cut | `Ctrl` + `X` | `Cmd` + `X` |
+| Copy | `Ctrl` + `C` | `Cmd` + `C` |
+| Paste | `Ctrl` + `V` | `Cmd` + `V` |
+| Select All | `Ctrl` + `A` | `Cmd` + `A` |
+| **Tools** | |
+| Draw Tool | `D` | `D` |
+| Splice Tool | `X` | `X`|
+| Erase Tool | `E` | `E` |
+| Select Tool | `S` | `S` |
+| Grab Tool | `G` | `G` |
+| **Playback** | |
+| Play/Pause | `Space` | `Space` |
 
 ## 💾 Save, Load & Export
-- Save Project: Saves your work as a .cht file 
-- Load Project: Load a .cht file from your computer to restore your session.
-- Export Audio: Render your composition to .wav or .mp3 entirely in the browser.
-- Presets: Save/load effect presets to reuse your favorite instrument and effect chains.
+- **Save Project:** Saves your work as a `.cht` file.
+- **Load Project:** Load a `.cht` file from your computer to restore your session.
+- **Export Audio:** Render your composition to `.wav` or `.mp3` entirely in the browser.
 
 ## 📜 License
 CC0 License — free to use, and share.
