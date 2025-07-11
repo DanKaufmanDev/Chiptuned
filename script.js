@@ -37,6 +37,24 @@ const waveforms = ['square', 'sine', 'sawtooth', 'triangle'];
 const instruments = ['piano', 'organ', 'synth lead', 'bass', 'flute', 'trumpet', 'strings'];
 const sfx = ['coin', 'jump', 'laser', 'explosion', 'blip', 'powerup', 'hit'];
 
+const KEYBIND_LABELS = {
+    'global-open': 'Open Project',
+    'global-save': 'Save Project',
+    'global-new': 'New Project',
+    'global-select-all': 'Select All',
+    'tool-undo': 'Undo',
+    'tool-redo': 'Redo',
+    'tool-cut': 'Cut',
+    'tool-copy': 'Copy',
+    'tool-paste': 'Paste',
+    'tool-draw': 'Draw Tool',
+    'tool-splice': 'Splice Tool',
+    'tool-erase': 'Erase Tool',
+    'tool-select': 'Select Tool',
+    'tool-move': 'Grab Tool',
+    'global-play': 'Play/Pause'
+};
+
 const defaultWaveformEffects = {
     square: {
         adsr: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.2 },
@@ -1981,6 +1999,10 @@ const effectsWindowOverlay = document.getElementById('effects-window-overlay');
 const effectsWindowTitle = document.getElementById('effects-window-title');
 const effectsWindowClose = document.getElementById('effects-window-close');
 const effectsWindowReset = document.getElementById('effects-window-reset');
+
+let settingsWindowOverlay;
+const settingsWindowClose = document.getElementById('settings-window-close');
+const globalSettingsButton = document.getElementById('global-settings');
 let currentEditingLayer = null;
 
 function populateEffectsWindow(layer) {
@@ -2019,7 +2041,15 @@ function closeEffectsWindow() {
     debouncedAutosaveStateToLocalStorage();
 }
 
-effectsWindowClose.addEventListener('click', closeEffectsWindow);
+function openSettingsWindow() {
+    populateKeybindSettings();
+    settingsWindowOverlay.classList.remove('hidden');
+}
+
+function closeSettingsWindow() {
+    settingsWindowOverlay.classList.add('hidden');
+}
+
 effectsWindowReset.addEventListener('click', () => {
     if (currentEditingLayer) {
         const waveform = currentEditingLayer.waveform;
@@ -3194,10 +3224,12 @@ document.addEventListener('keydown', (e) => {
                 break;
             case keybinds['tool-undo']:
                 e.preventDefault();
-                if (e.shiftKey) {
+                undo();
+                break;
+            case keybinds['tool-redo']:
+                 if (e.shiftKey) {
+                    e.preventDefault();
                     redo();
-                } else {
-                    undo();
                 }
                 break;
             case keybinds['tool-copy']:
@@ -3252,6 +3284,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 async function init() {
+    settingsWindowOverlay = document.getElementById('settings-window-overlay');
+    const effectsWindowClose = document.getElementById('effects-window-close');
+    const settingsWindowClose = document.getElementById('settings-window-close');
+    const globalSettingsButton = document.getElementById('global-settings');
     await setupAudioWorklet(); // Ensure the worklet is ready before doing anything else
 
     // Connect the master audio graph directly to destination
@@ -3267,6 +3303,9 @@ async function init() {
     renderSoundSelectionButtons(); // Render sound selection buttons on load
 
     barInput.addEventListener('input', updateGridForBarSystem);
+    effectsWindowClose.addEventListener('click', closeEffectsWindow);
+    globalSettingsButton.addEventListener('click', openSettingsWindow);
+    settingsWindowClose.addEventListener('click', closeSettingsWindow);
 
     // Enable the saveMp3Button only if lamejs is defined
     if (typeof lamejs !== 'undefined') {
@@ -3471,4 +3510,96 @@ function saveKeybinds() {
 function updateKeybinds(action, newKey) {
     keybinds[action] = newKey.toLowerCase();
     saveKeybinds(keybinds);
+}
+
+function populateKeybindSettings() {
+    const container = document.getElementById('keybind-settings-container');
+    container.innerHTML = ''; // Clear previous content
+
+    const currentKeybinds = loadKeybinds();
+
+    for (const action in DEFAULT_KEYBINDS) {
+        const isMac = navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
+        const modifier = isMac ? 'Cmd' : 'Ctrl';
+        const isModifierAction = (action.startsWith('global-') || action.startsWith('tool-')) && !['tool-draw', 'tool-splice', 'tool-erase', 'tool-select', 'tool-move', 'global-play'].includes(action);
+
+        const div = document.createElement('div');
+        div.classList.add('flex', 'items-center', 'justify-between', 'mb-2');
+
+        const label = document.createElement('label');
+        label.textContent = KEYBIND_LABELS[action] || action;
+        label.classList.add('text-white');
+        label.style.textShadow = '2px 2px 0px #000000';
+
+        const inputContainer = document.createElement('div');
+        inputContainer.classList.add('flex', 'items-center', 'gap-2');
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        const currentValue = currentKeybinds[action] || DEFAULT_KEYBINDS[action];
+
+        if (action === 'global-play' && currentValue === ' ') {
+            input.value = 'Space';
+        } else if (action === 'tool-redo') {
+            input.value = `${modifier} + Shift + ${currentValue}`;
+        } else if (isModifierAction) {
+            input.value = `${modifier} + ${currentValue}`;
+        } else {
+            input.value = currentValue;
+        }
+
+        input.classList.add('w-auto', 'text-center', 'bg-gray-700', 'text-white', 'font-bold', 'rounded', 'px-2');
+        input.dataset.action = action;
+
+        if (isModifierAction) {
+            input.addEventListener('keydown', (e) => {
+                e.preventDefault();
+                let newKey;
+                if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    newKey = e.key.toLowerCase();
+                    if (action === 'tool-redo') {
+                        e.target.value = `${modifier} + Shift + ${newKey}`;
+                    } else {
+                        e.target.value = `${modifier} + ${newKey}`;
+                    }
+                    updateKeybinds(action, newKey);
+                } else if (e.key === 'Backspace') {
+                    newKey = DEFAULT_KEYBINDS[action];
+                    if (action === 'tool-redo') {
+                        e.target.value = `${modifier} + Shift + ${newKey}`;
+                    } else {
+                        e.target.value = `${modifier} + ${newKey}`;
+                    }
+                    updateKeybinds(action, newKey);
+                }
+            });
+        } else { // This block handles 'tool-draw', 'tool-splice', 'tool-erase', 'tool-select', 'tool-move', 'global-play'
+            input.addEventListener('keydown', (e) => {
+                e.preventDefault();
+                let newKey;
+                let displayValue;
+
+                if (e.key === 'Backspace') {
+                    newKey = DEFAULT_KEYBINDS[action];
+                    displayValue = (action === 'global-play' && newKey === ' ') ? 'Space' : newKey;
+                } else if (action === 'global-play' && e.key === ' ') {
+                    newKey = ' ';
+                    displayValue = 'Space';
+                } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    newKey = e.key.toLowerCase();
+                    displayValue = newKey;
+                }
+
+                if (newKey !== undefined) {
+                    e.target.value = displayValue;
+                    updateKeybinds(action, newKey);
+                }
+            });
+        }
+
+        inputContainer.appendChild(input);
+        div.appendChild(label);
+        div.appendChild(inputContainer);
+        container.appendChild(div);
+    }
 }

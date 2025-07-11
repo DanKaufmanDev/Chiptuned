@@ -592,6 +592,14 @@ body {
     z-index: 1000;
 }
 
+#settings-window-overlay {
+    z-index: 1000;
+}
+
+#settings-window-overlay.hidden {
+    display: none;
+}
+
 #effects-window-overlay.hidden {
     display: none;
 }
