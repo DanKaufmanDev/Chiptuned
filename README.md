@@ -26,7 +26,7 @@ After refining the workflow for internal use, I realized this tool could help ot
     - LFO modulation
     - Per-channel effect chains
 - 🎚️ Bus mixer for individual track control
-- 📝 Full undo/redo system with autosave
+- 📝 Full undo/redo system
 - 💾 Save/load as `.cht` project files
 - ⚙️ Customizable keyboard shortcuts
 - 🎵 Export to `.wav` and `.mp3`
@@ -70,6 +70,7 @@ Chiptuned features customizable keyboard shortcuts for a faster workflow. You ca
 - **Save Project:** Saves your work as a `.cht` file.
 - **Load Project:** Load a `.cht` file from your computer to restore your session.
 - **Export Audio:** Render your composition to `.wav` or `.mp3` entirely in the browser.
+- **Autosave:** Your session is automatically saved to your browser's local storage every 30 seconds from last autosave action.
 
 ## 📜 License
 CC0 License — free to use, and share.
