@@ -150,7 +150,8 @@ let moveStartRow = -1;
 let currentlySelectedNotes = [];
 let gridOffset = 0;
 let hasUnsavedChanges = false;
-let clipboard = null; 
+let clipboard = null;
+let copiedEffects = null;
 let keybinds = loadKeybinds();
 
 function formatTime(seconds) {
@@ -1998,6 +1999,8 @@ window.addEventListener('resize', () => {
 const effectsWindowOverlay = document.getElementById('effects-window-overlay');
 const effectsWindowTitle = document.getElementById('effects-window-title');
 const effectsWindowClose = document.getElementById('effects-window-close');
+const effectsWindowCopy = document.getElementById('effects-window-copy');
+const effectsWindowPaste = document.getElementById('effects-window-paste');
 const effectsWindowReset = document.getElementById('effects-window-reset');
 
 let settingsWindowOverlay;
@@ -3603,3 +3606,27 @@ function populateKeybindSettings() {
         container.appendChild(div);
     }
 }
+
+effectsWindowCopy.addEventListener('click', () => {
+    copyEffectsButton()
+});
+
+effectsWindowPaste.addEventListener('click', () => {
+    pasteEffectsButton()
+});
+
+function copyEffectsButton(layerEffects) {
+    copiedEffects = null;
+    copiedEffects = JSON.parse(JSON.stringify(layers[activeLayerIndex].effects));
+};
+
+function pasteEffectsButton() {
+    if (copiedEffects && currentEditingLayer) {
+        currentEditingLayer.effects = JSON.parse(JSON.stringify(copiedEffects));
+        populateEffectsWindow(currentEditingLayer);
+        updateLayerEffects(currentEditingLayer);
+        console.log("Pasted effects to layer:", currentEditingLayer.name);
+    } else {
+        console.log("No copied effects or no layer selected.");
+    }
+};
