@@ -881,3 +881,54 @@ body {
     top: 0rem;
     right: 0.282rem;
 }
+
+/* --- Custom Sound Button Slide Left for Delete --- */
+.custom-sound-container {
+    position: relative;
+    width: 100%;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+}
+.custom-sound-btn {
+    width: 100%;
+    transition: transform 0.2s;
+    z-index: 0;
+}
+.custom-sound-container.show-delete .custom-sound-btn {
+    transform: translateX(-44px); /* Slide left to make space for delete */
+}
+.custom-sound-delete {
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    right: 8px;
+    top: 53%;
+    transform: translateY(-55%) translateX(30px);
+    width: 32px;
+    height: 32px;
+    z-index: 1;
+    transition: opacity 0.2s, transform 0.2s;
+    background: var(--button-bg, #c0c0c0);
+    color: #a33;
+    border: 0.15rem solid var(--border-color-light, #a1a1a1);
+    border-right-color: var(--border-color-dark, #000000);
+    border-bottom-color: var(--border-color-dark, #000000);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0.2rem 0.2rem 0px 0px var(--border-color-dark, #000000);
+    padding: 0;
+
+}
+.custom-sound-delete:hover {
+    background: #a33;
+    color: #fff;
+}
+.custom-sound-container.show-delete .custom-sound-delete {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(-50%) translateX(0);
+}

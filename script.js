@@ -40,6 +40,49 @@ const sfx = ['coin', 'laser', 'explosion'];
 
 let custom = [];
 
+// Custom sounds localStorage functions
+function saveCustomSoundsToLocalStorage() {
+    try {
+        localStorage.setItem('chiptuned-custom-sounds', JSON.stringify(custom));
+    } catch (error) {
+        console.error('Failed to save custom sounds to localStorage:', error);
+    }
+}
+
+function loadCustomSoundsFromLocalStorage() {
+    try {
+        const savedCustomSounds = localStorage.getItem('chiptuned-custom-sounds');
+        if (savedCustomSounds) {
+            custom = JSON.parse(savedCustomSounds);
+        }
+    } catch (error) {
+        console.error('Failed to load custom sounds from localStorage:', error);
+        custom = []; // Reset to empty array if loading fails
+    }
+}
+
+function addCustomSound(soundData) {
+    // Avoid duplicates
+    if (!custom.some(cs => cs.name === soundData.name)) {
+        custom.push(soundData);
+        saveCustomSoundsToLocalStorage();
+        renderSoundSelectionButtons(); // Re-render to show the new button
+        return true;
+    }
+    return false;
+}
+
+function removeCustomSound(soundName) {
+    const index = custom.findIndex(cs => cs.name === soundName);
+    if (index !== -1) {
+        custom.splice(index, 1);
+        saveCustomSoundsToLocalStorage();
+        renderSoundSelectionButtons(); // Re-render to update the panel
+        return true;
+    }
+    return false;
+}
+
 const KEYBIND_LABELS = {
     'global-open': 'Open Project',
     'global-save': 'Save Project',
@@ -724,10 +767,10 @@ function renderSoundSelectionButtons() {
                 try {
                     const soundData = JSON.parse(e.target.result);
                     if (soundData.name && soundData.effects) {
-                        // Avoid duplicates
-                        if (!custom.some(cs => cs.name === soundData.name)) {
-                            custom.push(soundData);
-                            renderSoundSelectionButtons(); // Re-render to show the new button
+                        if (addCustomSound(soundData)) {
+                            // Sound was added successfully
+                        } else {
+                            alert('A sound with this name already exists.');
                         }
                     } else {
                         alert('Invalid .chts file. Missing "name" or "effects" property.');
@@ -745,8 +788,78 @@ function renderSoundSelectionButtons() {
         document.body.removeChild(fileInput);
     });
 
-    // Render existing custom sounds
-    custom.forEach(cs => soundsPanel.appendChild(createButton('custom', cs.name, cs.name, cs.effects)));
+    // Render existing custom sounds with delete buttons (slide left for delete, click outside to hide)
+    custom.forEach(cs => {
+        const soundContainer = document.createElement('div');
+        soundContainer.classList.add('flex', 'items-center', 'w-full', 'mb-2', 'custom-sound-container');
+        
+        const soundButton = document.createElement('button');
+        soundButton.textContent = cs.name;
+        soundButton.classList.add('sound-select-button', 'retro-button', 'px-4', 'py-2', 'w-full', 'custom-sound-btn');
+        soundButton.dataset.type = 'custom';
+        soundButton.dataset.value = cs.name;
+        if (activeLayer.custom === cs.name) {
+            soundButton.classList.add('active');
+        }
+        soundButton.addEventListener('click', () => {
+            activeLayer.waveform = '';
+            activeLayer.instrument = '';
+            activeLayer.sfx = '';
+            activeLayer.custom = cs.name;
+            activeLayer.effects = JSON.parse(JSON.stringify(cs.effects));
+            updateLayerEffects(activeLayer);
+            renderSoundSelectionButtons();
+        });
+
+        // Show delete on hold
+        let holdTimeout;
+        let deleteVisible = false;
+        const showDelete = (e) => {
+            if (deleteVisible) return;
+            holdTimeout = setTimeout(() => {
+                soundContainer.classList.add('show-delete');
+                deleteVisible = true;
+                // Add document click listener
+                setTimeout(() => {
+                    document.addEventListener('mousedown', docClick, true);
+                    document.addEventListener('touchstart', docClick, true);
+                }, 0);
+            }, 300); // 300ms hold
+        };
+        const hideDelete = () => {
+            clearTimeout(holdTimeout);
+            if (deleteVisible) {
+                soundContainer.classList.remove('show-delete');
+                deleteVisible = false;
+                document.removeEventListener('mousedown', docClick, true);
+                document.removeEventListener('touchstart', docClick, true);
+            }
+        };
+        const docClick = (evt) => {
+            if (!deleteButton.contains(evt.target)) {
+                hideDelete();
+            }
+        };
+        soundButton.addEventListener('mousedown', showDelete);
+        soundButton.addEventListener('touchstart', showDelete);
+        // Remove listeners that hide delete on mouseup/mouseleave/touchend/touchcancel
+
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = '×';
+        deleteButton.classList.add('retro-button', 'px-2', 'py-1', 'text-red-400', 'hover:text-red-200', 'custom-sound-delete');
+        deleteButton.title = 'Delete sound';
+        deleteButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            hideDelete();
+            if (confirm(`Are you sure you want to delete "${cs.name}"?`)) {
+                removeCustomSound(cs.name);
+            }
+        });
+        
+        soundContainer.appendChild(soundButton);
+        soundContainer.appendChild(deleteButton);
+        soundsPanel.appendChild(soundContainer);
+    });
 }
 
 function switchLayer(index, force = false) {
@@ -1369,6 +1482,28 @@ function updateLayerEffects(layer) {
     }
 }
 
+// --- Play a custom sound using the correct playback function ---
+function playCustomSound(customSound, frequency, time, duration, audioCtx, destinationNode, effects) {
+    if (!customSound || !customSound.sound || !customSound.sound.type) return;
+    const type = customSound.sound.type;
+    const value = customSound.sound.value;
+    // Use the effects from the custom sound unless overridden
+    const fx = effects || customSound.effects;
+    if (type === 'waveform') {
+        // Use playSound for basic waveforms
+        playSound(value, frequency, time, duration, audioCtx, destinationNode, fx);
+    } else if (type === 'instrument') {
+        // Use playInstrument for instruments
+        playInstrument(value, frequency, time, duration, audioCtx, destinationNode, fx);
+    } else if (type === 'sfx') {
+        // Use playSFX for SFX
+        playSFX(value, time, duration, audioCtx, destinationNode, fx);
+    }
+}
+
+// ... existing code ...
+
+// In scheduleNote, use playCustomSound for custom sounds
 function scheduleNote(beatNumber, time) {
     const anyLayerSoloed = layers.some(l => l.isSoloed);
 
@@ -1385,10 +1520,16 @@ function scheduleNote(beatNumber, time) {
                 const noteDurationInSeconds = noteDurationInBeats * (60.0 / parseFloat(bpmInput.value));
 
                 const noteFrequency = baseFrequencies[i] * Math.pow(2, layer.octave);
-                
                 // Correctly pass the destination node for live playback
                 const destinationNode = layer.inputNode || layer.gainNode;
 
+                if (layer.custom) {
+                    const customSound = custom.find(cs => cs.name === layer.custom);
+                    if (customSound) {
+                        playCustomSound(customSound, noteFrequency, time, noteDurationInSeconds, audioContext, destinationNode, layer.effects);
+                        return;
+                    }
+                }
                 if (layer.sfx) {
                     playSFX(layer.sfx, time, noteDurationInSeconds, audioContext, destinationNode, layer.effects);
                 } else if (layer.instrument) {
@@ -1400,6 +1541,7 @@ function scheduleNote(beatNumber, time) {
         }
     });
 }
+// ... existing code ...
 
 let loopHappened = false;
 
@@ -3533,6 +3675,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 async function init() {
+    loadCustomSoundsFromLocalStorage();
     settingsWindowOverlay = document.getElementById('settings-window-overlay');
     const effectsWindowClose = document.getElementById('effects-window-close');
     const settingsWindowClose = document.getElementById('settings-window-close');
