@@ -33,8 +33,9 @@ const selectionRectangle = document.getElementById('selection-rectangle');
 const spliceLine = document.getElementById('splice-line');
 const sequencerPrevButton = document.getElementById('sequencer-prev');
 const sequencerNextButton = document.getElementById('sequencer-next');
+
 const waveforms = ['square', 'sine', 'sawtooth', 'triangle'];
-const instruments = ['piano', 'organ', 'synth lead', 'bass', 'flute', 'trumpet', 'strings'];
+const instruments = ['kick drum', 'snare drum', 'hi-hat', 'tom drum', 'clap'];
 const sfx = ['coin', 'jump', 'laser', 'explosion', 'blip', 'powerup', 'hit'];
 
 const KEYBIND_LABELS = {
@@ -55,41 +56,6 @@ const KEYBIND_LABELS = {
     'global-play': 'Play/Pause'
 };
 
-const defaultWaveformEffects = {
-    square: {
-        adsr: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.2 },
-        lfo: { rate: 0, depth: 0, waveform: 'square' },
-        reverb: { mix: 0.1, decay: 0.5, predelay: 0.01 },
-        delay: { time: 0, feedback: 0, mix: 0 },
-        bitcrusher: { bits: 16, frequencyReduction: 1 },
-        pan: 0
-    },
-    sine: {
-        adsr: { attack: 0.1, decay: 0.2, sustain: 0.7, release: 0.3 },
-        lfo: { rate: 0, depth: 0, waveform: 'sine' },
-        reverb: { mix: 0.2, decay: 1, predelay: 0.02 },
-        delay: { time: 0, feedback: 0, mix: 0 },
-        bitcrusher: { bits: 16, frequencyReduction: 1 },
-        pan: 0
-    },
-    sawtooth: {
-        adsr: { attack: 0.05, decay: 0.3, sustain: 0.6, release: 0.4 },
-        lfo: { rate: 0, depth: 0, waveform: 'sawtooth' },
-        reverb: { mix: 0.15, decay: 0.8, predelay: 0.015 },
-        delay: { time: 0, feedback: 0, mix: 0 },
-        bitcrusher: { bits: 16, frequencyReduction: 1 },
-        pan: 0
-    },
-    triangle: {
-        adsr: { attack: 0.02, decay: 0.15, sustain: 0.5, release: 0.25 },
-        lfo: { rate: 0, depth: 0, waveform: 'triangle' },
-        reverb: { mix: 0.1, decay: 0.6, predelay: 0.01 },
-        delay: { time: 0, feedback: 0, mix: 0 },
-        bitcrusher: { bits: 16, frequencyReduction: 1 },
-        pan: 0
-    }
-};
-
 const DEFAULT_KEYBINDS = {
     'global-open': 'o',
     'global-save': 's',
@@ -106,6 +72,84 @@ const DEFAULT_KEYBINDS = {
     'tool-select': 's',
     'tool-move': 'g',
     'global-play': ' '
+};
+
+const defaultWaveformEffects = {
+    'square': {
+        adsr: { attack: 0.01, decay: 0.1, sustain: 0.5, release: 0.2 },
+        lfo: { rate: 0, depth: 0, waveform: 'square' },
+        reverb: { mix: 0.1, decay: 0.5, predelay: 0.01 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 16, frequencyReduction: 1 },
+        pan: 0
+    },
+    'sine': {
+        adsr: { attack: 0.1, decay: 0.2, sustain: 0.7, release: 0.3 },
+        lfo: { rate: 0, depth: 0, waveform: 'sine' },
+        reverb: { mix: 0.2, decay: 1, predelay: 0.02 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 16, frequencyReduction: 1 },
+        pan: 0
+    },
+    'sawtooth': {
+        adsr: { attack: 0.05, decay: 0.3, sustain: 0.6, release: 0.4 },
+        lfo: { rate: 0, depth: 0, waveform: 'sawtooth' },
+        reverb: { mix: 0.15, decay: 0.8, predelay: 0.015 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 16, frequencyReduction: 1 },
+        pan: 0
+    },
+    'triangle': {
+        adsr: { attack: 0.02, decay: 0.15, sustain: 0.5, release: 0.25 },
+        lfo: { rate: 0, depth: 0, waveform: 'triangle' },
+        reverb: { mix: 0.1, decay: 0.6, predelay: 0.01 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 16, frequencyReduction: 1 },
+        pan: 0
+    }
+};
+
+const defaultInstrumentEffects = {
+    'kick drum': {
+        adsr: { attack: 0.013, decay: 0.09, sustain: 0.0, release: 0.0 }, // 0.3 0.45 0.1 0.2
+        lfo: { rate: 0.1, depth: 0.1, waveform: 'triangle' }, // 0.1 0.1
+        reverb: { mix: 0, decay: 0.01, predelay: 0 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 5, frequencyReduction: 1 },    // 15 1
+        pan: 0
+    },
+    'snare drum': {
+        adsr: { attack: 0.0, decay: 0.07, sustain: 0.0, release: 0.0 },
+        lfo: { rate: 0, depth: 0, waveform: 'sine' },
+        reverb: { mix: 0.10, decay: 0.25, predelay: 0.01 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 4, frequencyReduction: 0.15 },
+        pan: 0
+    },
+    'hi-hat': {
+        adsr: { attack: 0.0, decay: 0.035, sustain: 0.0, release: 0.0 },
+        lfo: { rate: 0, depth: 0, waveform: 'sine' }, 
+        reverb: { mix: 0.10, decay: 0.15, predelay: 0.01 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 8, frequencyReduction: 0.5 },
+        pan: 0
+    },
+    'tom drum': {
+        adsr: { attack: 0.0, decay: 0.2, sustain: 0.03, release: 0.0 }, 
+        lfo: { rate: 0, depth: 0, waveform: 'square' }, 
+        reverb: { mix: 0.0, decay: 0.1, predelay: 0.01 }, 
+        delay: { time: 0, feedback: 0, mix: 0 }, 
+        bitcrusher: { bits: 8, frequencyReduction: 0.40 }, 
+        pan: 0 
+    },
+    'clap': {
+        adsr: { attack: 0.0, decay: 0.05, sustain: 0.0, release: 2 },
+        lfo: { rate: 0, depth: 0, waveform: 'triangle' },
+        reverb: { mix: 0.08, decay: 0.24, predelay: 0.01 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 6, frequencyReduction: 0.35 },
+        pan: 0
+    }
 };
 
 let layers = [];
@@ -193,12 +237,10 @@ function createNewLayer(name) {
     const reverbNode = audioContext.createConvolver();
     const reverbWetGain = audioContext.createGain();
     const reverbDryGain = audioContext.createGain();
-
     const delayNode = audioContext.createDelay();
     const delayFeedbackGain = audioContext.createGain();
     const delayWetGain = audioContext.createGain();
     const delayDryGain = audioContext.createGain();
-
     const pannerNode = audioContext.createStereoPanner();
 
     const layer = {
@@ -223,7 +265,7 @@ function createNewLayer(name) {
         delayDryGain: delayDryGain,
         bitcrusherNode: null,
         pannerNode: pannerNode,
-        inputNode: null 
+        inputNode: null
     };
 
     const bitcrusherNode = createBitcrusherNode(layer);
@@ -332,7 +374,6 @@ async function setupAudioWorklet() {
     try {
         await audioContext.audioWorklet.addModule('bitcrusher-processor.js');
         isAudioWorkletReady = true;
-        console.log('Audio Worklet is ready.');
     } catch (e) {
         console.error('Error loading audio worklet.', e);
     }
@@ -438,6 +479,7 @@ function renderLayerList() {
             e.stopPropagation();
             toggleSolo(index);
         });
+
         layerNameContainer.appendChild(soloBtn);
 
         const muteBtn = document.createElement('button');
@@ -460,6 +502,7 @@ function renderLayerList() {
             renderLayerList(); // Re-render to update mute button state
             renderBusMixer(); // Re-render the bus to update the slider
         });
+
         layerNameContainer.appendChild(muteBtn);
 
         const deleteBtn = document.createElement('button');
@@ -469,8 +512,8 @@ function renderLayerList() {
             e.stopPropagation(); // Prevent the layer from being selected when deleting
             deleteLayer(index);
         });
-        layerNameContainer.appendChild(deleteBtn);
 
+        layerNameContainer.appendChild(deleteBtn);
         layerElement.appendChild(layerNameContainer);
 
         const miniGrid = document.createElement('div');
@@ -574,6 +617,9 @@ function renderSoundSelectionButtons() {
                 }
             } else if (clickedType === 'instrument') {
                 activeLayer.instrument = clickedValue;
+                if (defaultInstrumentEffects[clickedValue]) {
+                    activeLayer.effects = JSON.parse(JSON.stringify(defaultInstrumentEffects[clickedValue]));
+                }
             } else if (clickedType === 'sfx') {
                 activeLayer.sfx = clickedValue;
             }
@@ -682,7 +728,6 @@ function eraseSelectedNotes() {
         saveState();
         debouncedAutosaveStateToLocalStorage();
     });
-    console.log("Erased selected notes.");
 }
 
 function eraseNote(row, col) {
@@ -769,8 +814,6 @@ function updateNotesAndFrequencies() {
 }
 
 function createGrid() {
-    // console.log('createGrid called');
-    // Clear existing grid and labels before recreating
     gridContainer.innerHTML = '';
     noteLabelsContainer.innerHTML = '';
 
@@ -1050,40 +1093,114 @@ function playInstrument(instrument, frequency, time, duration, audioCtx, destina
     gainNode.gain.linearRampToValueAtTime(0, noteEndTime + release);
 
 
-    if (instrument === 'piano') {
-        oscillator.type = 'triangle'; // Approximation
-    } else if (instrument === 'organ') {
-        oscillator.type = 'sine'; // Approximation
-        // Add a second oscillator for a richer organ sound
-        const oscillator2 = audioCtx.createOscillator();
-        oscillator2.type = 'sine';
-        oscillator2.frequency.setValueAtTime(frequency * 2, startTime); // Octave higher
-        oscillator2.connect(gainNode);
-        oscillator2.start(startTime);
-        oscillator2.stop(noteEndTime + release);
-    } else if (instrument === 'synth_lead') {
-        oscillator.type = 'sawtooth';
-    } else if (instrument === 'bass') {
-        oscillator.type = 'square';
-        oscillator.frequency.setValueAtTime(frequency / 2, startTime); // Lower octave for bass
-    } else if (instrument === 'flute') {
-        oscillator.type = 'sine'; // Pure tone
-    } else if (instrument === 'trumpet') {
-        oscillator.type = 'sawtooth'; // Brassy sound
-    } else if (instrument === 'strings') {
-        oscillator.type = 'sawtooth'; // Richer sound
-        // Add vibrato for strings
-        const vibrato = audioCtx.createOscillator();
-        vibrato.type = 'sine';
-        vibrato.frequency.setValueAtTime(5, startTime); // 5 Hz vibrato
-        const vibratoGain = audioCtx.createGain();
-        vibratoGain.gain.setValueAtTime(frequency * 0.02, startTime); // Small frequency deviation
-        vibrato.connect(vibratoGain);
-        vibratoGain.connect(oscillator.frequency);
-        vibrato.start(startTime);
-        vibrato.stop(noteEndTime + release);
+    if (instrument === 'kick drum') {
+    // --- Drum: Noise burst + pitch envelope ---
+    oscillator.type = 'triangle';
+    // Pitch envelope for "kick" effect
+    oscillator.frequency.setValueAtTime(frequency, startTime);
+    oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.3, startTime + 0.05);
+    // Noise burst for "snare" effect
+    const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.08, audioCtx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < output.length; i++) {
+        output[i] = Math.random() * 2 - 1;
     }
-    // Add more instrument implementations here
+    const noiseSource = audioCtx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    noiseSource.connect(gainNode);
+
+    // Fast gain envelope for drum
+    gainNode.gain.setValueAtTime(0.7, startTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, noteEndTime + 0.08);
+
+    noiseSource.start(startTime);
+    noiseSource.stop(noteEndTime + 0.08);
+
+    } else if (instrument === 'snare drum') {
+    // --- Snare Drum: Noise burst + fast envelope ---
+    // Create a noise buffer
+    const bufferSize = audioCtx.sampleRate * 0.15; // ~150ms burst
+    const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+    }
+    const noiseSource = audioCtx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    noiseSource.connect(gainNode);
+
+    // Fast gain envelope for snare
+    gainNode.gain.setValueAtTime(0.7, startTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, noteEndTime + 0.15);
+
+    noiseSource.start(startTime);
+    noiseSource.stop(noteEndTime + 0.15);
+
+    // Don't use oscillator for snare
+    oscillator.disconnect();
+
+} else if (instrument === 'hi-hat') {
+    // --- Hi-Hat: Noise burst + fast envelope ---
+    const bufferSize = audioCtx.sampleRate * 0.05; // ~50ms burst
+    const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+    }
+    const noiseSource = audioCtx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+
+    // Optional: Highpass filter for metallic sound
+    const highpass = audioCtx.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 7000;
+    noiseSource.connect(highpass);
+    highpass.connect(gainNode);
+
+    // Fast gain envelope
+    gainNode.gain.setValueAtTime(0.5, startTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, noteEndTime + 0.05);
+
+    noiseSource.start(startTime);
+    noiseSource.stop(noteEndTime + 0.05);
+
+    // Don't use oscillator for hi-hat
+    oscillator.disconnect();
+
+} else if (instrument === 'tom drum') {
+    // --- Tom Drum: Lower pitch, pitch drop, short envelope ---
+    oscillator.type = 'square';
+    oscillator.frequency.setValueAtTime(frequency / 2, startTime); // Lower pitch
+    oscillator.frequency.exponentialRampToValueAtTime(frequency / 4, startTime + 0.12); // Pitch drop
+
+    gainNode.gain.setValueAtTime(0.8, startTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, noteEndTime + 0.18);
+
+} else if (instrument === 'clap') {
+    const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.2, audioCtx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < output.length; i++) {
+        output[i] = Math.random() * 2 - 1;
+    }
+    const noiseSource = audioCtx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(2000, startTime);
+
+    noiseSource.connect(filter);
+    filter.connect(gainNode);
+
+    // Fast gain envelope for clap
+    gainNode.gain.setValueAtTime(0.6, startTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, noteEndTime + 0.2);
+
+    noiseSource.start(startTime);
+    noiseSource.stop(noteEndTime + release);
+
+    oscillator.disconnect();
+}
 
     oscillator.connect(gainNode);
     gainNode.connect(destinationNode);
@@ -1127,7 +1244,6 @@ function playSound(waveform, frequency, time, duration, audioCtx, destinationNod
     gainNode.gain.linearRampToValueAtTime(sustain, startTime + attack + decay);
     gainNode.gain.setValueAtTime(sustain, noteEndTime);
     gainNode.gain.linearRampToValueAtTime(0, noteEndTime + release);
-
 
     oscillator.connect(gainNode);
     gainNode.connect(destinationNode);
@@ -1462,7 +1578,6 @@ function handleMouseDown(e, row, col) {
     }
 }
 
-
 function handleMouseMove(e) {
     const targetCell = e.target.closest('.grid-cell');
     if (!targetCell) return;
@@ -1747,13 +1862,10 @@ function copySelectedNotes() {
         };
     });
     debouncedAutosaveStateToLocalStorage();
-    console.log("Notes copied to clipboard:", clipboard);
-    // Optional: provide visual feedback to the user
 }
 
 function cutSelectedNotes() {
     if (currentlySelectedNotes.length === 0) {
-        console.log("No notes selected to cut.");
         return;
     }
 
@@ -1775,12 +1887,10 @@ function cutSelectedNotes() {
         saveState();
         debouncedAutosaveStateToLocalStorage();
     });
-    console.log("Notes cut to clipboard.");
 }
 
 function pasteNotes() {
     if (!clipboard) {
-        console.log("Clipboard is empty.");
         return;
     }
 
@@ -1824,7 +1934,6 @@ function pasteNotes() {
         saveState();
         debouncedAutosaveStateToLocalStorage();
     });
-    console.log("Notes pasted from clipboard.");
 }
 
 function selectAllNotes() {
@@ -2056,11 +2165,15 @@ function closeSettingsWindow() {
 effectsWindowReset.addEventListener('click', () => {
     if (currentEditingLayer) {
         const waveform = currentEditingLayer.waveform;
-        if (defaultWaveformEffects[waveform]) {
+        const instrument = currentEditingLayer.instrument;
+
+        if (instrument && defaultInstrumentEffects[instrument]) {
+            currentEditingLayer.effects = JSON.parse(JSON.stringify(defaultInstrumentEffects[instrument]));
+        } else if (waveform && defaultWaveformEffects[waveform]) {
             currentEditingLayer.effects = JSON.parse(JSON.stringify(defaultWaveformEffects[waveform]));
-            populateEffectsWindow(currentEditingLayer);
-            updateLayerEffects(currentEditingLayer);
         }
+        populateEffectsWindow(currentEditingLayer);
+        updateLayerEffects(currentEditingLayer);
     }
 });
 
@@ -2389,7 +2502,6 @@ newProjectButton.addEventListener('click', async () => {
 randomGridButton.addEventListener('click', () => {
     // Add a guard clause to ensure there's an active layer
     if (activeLayerIndex === -1 || !layers[activeLayerIndex]) {
-        console.error("Cannot randomize: No active layer selected.");
         return;
     }
 
@@ -2642,8 +2754,6 @@ async function loadProject(data) {
             delayDryGain.gain.value = 1.0 - loadedLayer.effects.delay.mix;
             delayFeedbackGain.gain.value = loadedLayer.effects.delay.feedback;
             delayNode.delayTime.value = loadedLayer.effects.delay.time;
-            // Recreate reverb buffer - might need to make generateReverbImpulseResponse sync or handle async
-            // For now, assuming it's sync or the buffer can be set later
             reverbNode.buffer = generateReverbImpulseResponse(loadedLayer.effects.reverb.decay, loadedLayer.effects.reverb.decay, false);
             pannerNode.pan.value = loadedLayer.effects.pan;
 
@@ -3618,6 +3728,8 @@ effectsWindowPaste.addEventListener('click', () => {
 function copyEffectsButton(layerEffects) {
     copiedEffects = null;
     copiedEffects = JSON.parse(JSON.stringify(layers[activeLayerIndex].effects));
+    saveState();
+    debouncedAutosaveStateToLocalStorage();
 };
 
 function pasteEffectsButton() {
@@ -3625,7 +3737,8 @@ function pasteEffectsButton() {
         currentEditingLayer.effects = JSON.parse(JSON.stringify(copiedEffects));
         populateEffectsWindow(currentEditingLayer);
         updateLayerEffects(currentEditingLayer);
-        console.log("Pasted effects to layer:", currentEditingLayer.name);
+        saveState();
+        debouncedAutosaveStateToLocalStorage();
     } else {
         console.log("No copied effects or no layer selected.");
     }
