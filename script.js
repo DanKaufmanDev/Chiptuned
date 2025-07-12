@@ -756,27 +756,27 @@ function renderSoundSelectionButtons() {
         fileInput.accept = '.chts';
         fileInput.style.display = 'none';
 
-        fileInput.addEventListener('change', (event) => {
+        fileInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (!file) {
                 return;
             }
 
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
                     const soundData = JSON.parse(e.target.result);
                     if (soundData.name && soundData.effects) {
                         if (addCustomSound(soundData)) {
                             // Sound was added successfully
                         } else {
-                            alert('A sound with this name already exists.');
+                            await showCustomAlertDialog('A sound with this name already exists.');
                         }
                     } else {
-                        alert('Invalid .chts file. Missing "name" or "effects" property.');
+                        await showCustomAlertDialog('Invalid .chts file. Missing "name" or "effects" property.');
                     }
                 } catch (error) {
-                    alert('Error parsing .chts file.');
+                    await showCustomAlertDialog('Error parsing .chts file.');
                     console.error(error);
                 }
             };
@@ -848,10 +848,11 @@ function renderSoundSelectionButtons() {
         deleteButton.textContent = '×';
         deleteButton.classList.add('retro-button', 'px-2', 'py-1', 'text-red-400', 'hover:text-red-200', 'custom-sound-delete');
         deleteButton.title = 'Delete sound';
-        deleteButton.addEventListener('click', (e) => {
+        deleteButton.addEventListener('click', async (e) => {
             e.stopPropagation();
             hideDelete();
-            if (confirm(`Are you sure you want to delete "${cs.name}"?`)) {
+            const confirmed = await showCustomConfirmDialog(`Are you sure you want to delete <b>"${cs.name}"</b>?`);
+            if (confirmed) {
                 removeCustomSound(cs.name);
             }
         });
@@ -4022,3 +4023,62 @@ function pasteEffectsButton() {
         console.log("No copied effects or no layer selected.");
     }
 };
+
+// --- Custom Confirm Dialog for Deleting Custom Sounds ---
+function showCustomConfirmDialog(message) {
+    // Reuse the confirmation dialog overlay and buttons
+    confirmationMessage.innerHTML = message;
+    confirmationDialogOverlay.classList.remove('hidden');
+    confirmButton.textContent = 'Delete';
+    cancelButton.textContent = 'Cancel';
+    confirmButton.classList.add('text-red-400');
+    confirmButton.style.color = '#fff';
+    return new Promise(resolve => {
+        const cleanup = () => {
+            confirmButton.textContent = 'OK';
+            cancelButton.textContent = 'Cancel';
+            confirmButton.classList.remove('text-red-400');
+            confirmButton.style.color = '';
+        };
+        const onConfirm = () => {
+            hideConfirmationDialog();
+            cleanup();
+            resolve(true);
+            confirmButton.removeEventListener('click', onConfirm);
+            cancelButton.removeEventListener('click', onCancel);
+        };
+        const onCancel = () => {
+            hideConfirmationDialog();
+            cleanup();
+            resolve(false);
+            confirmButton.removeEventListener('click', onConfirm);
+            cancelButton.removeEventListener('click', onCancel);
+        };
+        confirmButton.addEventListener('click', onConfirm);
+        cancelButton.addEventListener('click', onCancel);
+    });
+}
+
+// --- Custom Alert Dialog for Duplicate Sounds ---
+function showCustomAlertDialog(message) {
+    confirmationMessage.innerHTML = message;
+    confirmationDialogOverlay.classList.remove('hidden');
+    confirmButton.textContent = 'OK';
+    cancelButton.style.display = 'none';
+    confirmButton.classList.remove('text-red-400');
+    confirmButton.style.color = '';
+    return new Promise(resolve => {
+        const cleanup = () => {
+            confirmButton.textContent = 'OK';
+            cancelButton.textContent = 'Cancel';
+            cancelButton.style.display = '';
+        };
+        const onConfirm = () => {
+            hideConfirmationDialog();
+            cleanup();
+            resolve();
+            confirmButton.removeEventListener('click', onConfirm);
+        };
+        confirmButton.addEventListener('click', onConfirm);
+    });
+}
