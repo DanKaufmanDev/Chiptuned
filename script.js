@@ -36,7 +36,9 @@ const sequencerNextButton = document.getElementById('sequencer-next');
 
 const waveforms = ['square', 'sine', 'sawtooth', 'triangle'];
 const instruments = ['kick drum', 'snare drum', 'hi-hat', 'tom drum', 'clap'];
-const sfx = ['coin', 'jump', 'laser', 'explosion', 'blip', 'powerup', 'hit'];
+const sfx = ['coin', 'laser', 'explosion'];
+
+let custom = [];
 
 const KEYBIND_LABELS = {
     'global-open': 'Open Project',
@@ -604,24 +606,36 @@ function renderSoundSelectionButtons() {
             const clickedType = type;
             const clickedValue = value;
 
-            // Reset all sound properties for the active layer
-            activeLayer.instrument = '';      // No instrument
-            activeLayer.sfx = '';             // No SFX
-
             // Set the property corresponding to the clicked button
             if (clickedType === 'waveform') {
                 activeLayer.waveform = clickedValue;
-                // Apply default effects for the selected waveform
+                activeLayer.instrument = '';
+                activeLayer.sfx = ''; 
+                activeLayer.custom = ''; 
                 if (defaultWaveformEffects[clickedValue]) {
                     activeLayer.effects = JSON.parse(JSON.stringify(defaultWaveformEffects[clickedValue]));
                 }
             } else if (clickedType === 'instrument') {
                 activeLayer.instrument = clickedValue;
+                activeLayer.waveform = '';
+                activeLayer.sfx = ''; 
+                activeLayer.custom = '';
                 if (defaultInstrumentEffects[clickedValue]) {
                     activeLayer.effects = JSON.parse(JSON.stringify(defaultInstrumentEffects[clickedValue]));
                 }
             } else if (clickedType === 'sfx') {
                 activeLayer.sfx = clickedValue;
+                activeLayer.waveform = '';
+                activeLayer.instrument = '';
+                activeLayer.custom = '';
+                if (defaultSfxEffects[clickedValue]) {
+                    activeLayer.effects = JSON.parse(JSON.stringify(defaultSfxEffects[clickedValue]));
+                }
+            } else if (clickedType === 'custom') {
+                activeLayer.custom = clickedValue;
+                activeLayer.waveform = '';
+                activeLayer.instrument = '';
+                activeLayer.sfx = '';
             }
 
             // Update the audio nodes with the new effect values
@@ -650,9 +664,21 @@ function renderSoundSelectionButtons() {
     sfxHeader.textContent = 'SFX';
     sfxHeader.classList.add('text-xl', 'font-bold', 'mb-2', 'mt-4', 'text-white');
     soundsPanel.appendChild(sfxHeader);
-    sfx.forEach(s => {
-        soundsPanel.appendChild(createButton('sfx', s, s.charAt(0).toUpperCase() + s.slice(1)));
-    });
+    sfx.forEach(s =>  soundsPanel.appendChild(createButton('sfx', s, s.charAt(0).toUpperCase() + s.slice(1))));
+       
+    // Custom Sounds
+    const customSoundHeader = document.createElement('h3');
+    customSoundHeader.textContent = 'Custom';
+    customSoundHeader.classList.add('text-xl', 'font-bold', 'mb-2', 'mt-4', 'text-white');
+
+    const addCustomSoundButton = document.createElement('button');
+    addCustomSoundButton.textContent = 'Add Sound';
+    addCustomSoundButton.classList.add('retro-button', 'px-4', 'py-2', 'mb-2', 'w-full');
+
+    soundsPanel.appendChild(customSoundHeader);
+    soundsPanel.appendChild(addCustomSoundButton);
+
+    custom.forEach(cs =>  soundsPanel.appendChild(createButton('custom', cs, cs.charAt(0).toUpperCase() + cs.slice(1))));
 }
 
 function switchLayer(index, force = false) {
