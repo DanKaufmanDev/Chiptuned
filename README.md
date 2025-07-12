@@ -1,8 +1,8 @@
 ## 🎶 Chiptuned
-A retro-inspired, browser-based 8-bit step sequencer and DAW built with vanilla JavaScript and the Web Audio API.
+A retro-inspired, browser-based 8-bit step sequencer and DAW (planned) built with vanilla JavaScript and the Web Audio API.
 
 ## 🌟 Overview
-Chiptuned is a fully client-side web application that lets you compose authentic 8-bit music directly in your browser. Chiptuned offers a modern 8-bit chiptune workflow — no downloads, plugins, or accounts required.
+Chiptuned is a client-side web application that lets you compose authentic 8-bit music directly in your browser. Chiptuned offers a modern 8-bit chiptune workflow — no downloads, plugins, or accounts required.
 
 Originally developed as an in-house tool for designing retro soundtracks and sound effects for indie video game projects, Chiptuned has been refined into a polished public tool so anyone can create 8-bit chiptune sounds for their games, videos, or creative projects.
 
@@ -37,7 +37,7 @@ After refining the workflow for internal use, I realized this tool could help ot
 2.  **Select a sound:** Choose a waveform, instrument, or SFX from the "Sounds" panel.
 3.  **Draw notes:** Use the "Draw" tool to add notes to the sequencer grid.
 4.  **Add effects:** Open the effects window from the bus mixer to add and tweak effects.
-5.  **Play your creation:** Use the global play/pause button or the spacebar to listen to your track.
+5.  **Play your creation:** Use the play/pause button or the spacebar to listen to your track.
 
 ## ⌨️ Keyboard Shortcuts
 Chiptuned features customizable keyboard shortcuts for a faster workflow. You can view and edit the keybinds in the settings menu.
@@ -71,6 +71,3 @@ Chiptuned features customizable keyboard shortcuts for a faster workflow. You ca
 - **Load Project:** Load a `.cht` file from your computer to restore your session.
 - **Export Audio:** Render your composition to `.wav` or `.mp3` entirely in the browser.
 - **Autosave:** Your session is automatically saved to your browser's local storage every 30 seconds from last autosave action.
-
-## 📜 License
-CC0 License — free to use, and share.
