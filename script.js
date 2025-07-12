@@ -154,12 +154,39 @@ const defaultInstrumentEffects = {
     }
 };
 
+const defaultSfxEffects = {
+    'coin': {
+        adsr: { attack: 0.0, decay: 0.1, sustain: 0.0, release: 0.0 },
+        lfo: { rate: 0, depth: 0, waveform: 'sine' },
+        reverb: { mix: 0, decay: 0.01, predelay: 0 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 8, frequencyReduction: 0.2 },
+        pan: 0
+    },
+    'laser': {
+        adsr: { attack: 0.0, decay: 0.2, sustain: 0.0, release: 0.0 },
+        lfo: { rate: 0, depth: 0, waveform: 'sine' },
+        reverb: { mix: 0, decay: 0.01, predelay: 0 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 8, frequencyReduction: 0.2 },
+        pan: 0
+    },
+    'explosion': {
+        adsr: { attack: 0.0, decay: 0.5, sustain: 0.0, release: 0.0 },
+        lfo: { rate: 0, depth: 0, waveform: 'sine' },
+        reverb: { mix: 0, decay: 0.01, predelay: 0 },
+        delay: { time: 0, feedback: 0, mix: 0 },
+        bitcrusher: { bits: 4, frequencyReduction: 0.5 },
+        pan: 0
+    }
+};
+
 let layers = [];
 let activeLayerIndex = -1;
-let masterGainNode = audioContext.createGain(); // Master Gain Node
+let masterGainNode = audioContext.createGain();
 
 const baseNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const baseFrequencies = [16.35, 17.32, 18.35, 19.45, 20.60, 21.83, 23.12, 24.50, 25.96, 27.50, 29.14, 30.87]; // C0 to B0
+const baseFrequencies = [16.35, 17.32, 18.35, 19.45, 20.60, 21.83, 23.12, 24.50, 25.96, 27.50, 29.14, 30.87];
 
 let currentOctave = 4; 
 let notes = [];
@@ -250,7 +277,7 @@ function createNewLayer(name) {
         name: name,
         grid: Array(numRows).fill(null).map(() => []),
         instrument: '',
-        waveform: 'square',
+        waveform: '',
         sfx: '',
         octave: 4,
         isMuted: false,
@@ -576,7 +603,7 @@ function renderSoundSelectionButtons() {
     const activeLayer = layers[activeLayerIndex];
     if (!activeLayer) return; // No active layer yet
 
-    const createButton = (type, value, label) => {
+    const createButton = (type, value, label, effects = null) => {
         const button = document.createElement('button');
         button.textContent = label;
         button.classList.add('sound-select-button', 'retro-button', 'px-4', 'py-2', 'mb-2', 'w-full');
@@ -584,15 +611,19 @@ function renderSoundSelectionButtons() {
         button.dataset.value = value;
 
         let isActive = false;
-        if (activeLayer.sfx) { // If an SFX is selected
+        if (activeLayer.custom) {
+            if (type === 'custom' && activeLayer.custom === value) {
+                isActive = true;
+            }
+        } else if (activeLayer.sfx) {
             if (type === 'sfx' && activeLayer.sfx === value) {
                 isActive = true;
             }
-        } else if (activeLayer.instrument) { // If an Instrument is selected (and no SFX)
+        } else if (activeLayer.instrument) {
             if (type === 'instrument' && activeLayer.instrument === value) {
                 isActive = true;
             }
-        } else { // If neither SFX nor Instrument is selected, then a Waveform must be active
+        } else {
             if (type === 'waveform' && activeLayer.waveform === value) {
                 isActive = true;
             }
@@ -603,44 +634,41 @@ function renderSoundSelectionButtons() {
         }
 
         button.addEventListener('click', () => {
-            const clickedType = type;
-            const clickedValue = value;
+            activeLayer.waveform = '';
+            activeLayer.instrument = '';
+            activeLayer.sfx = '';
+            activeLayer.custom = '';
 
-            // Set the property corresponding to the clicked button
-            if (clickedType === 'waveform') {
-                activeLayer.waveform = clickedValue;
-                activeLayer.instrument = '';
-                activeLayer.sfx = ''; 
-                activeLayer.custom = ''; 
-                if (defaultWaveformEffects[clickedValue]) {
-                    activeLayer.effects = JSON.parse(JSON.stringify(defaultWaveformEffects[clickedValue]));
-                }
-            } else if (clickedType === 'instrument') {
-                activeLayer.instrument = clickedValue;
-                activeLayer.waveform = '';
-                activeLayer.sfx = ''; 
-                activeLayer.custom = '';
-                if (defaultInstrumentEffects[clickedValue]) {
-                    activeLayer.effects = JSON.parse(JSON.stringify(defaultInstrumentEffects[clickedValue]));
-                }
-            } else if (clickedType === 'sfx') {
-                activeLayer.sfx = clickedValue;
-                activeLayer.waveform = '';
-                activeLayer.instrument = '';
-                activeLayer.custom = '';
-                if (defaultSfxEffects[clickedValue]) {
-                    activeLayer.effects = JSON.parse(JSON.stringify(defaultSfxEffects[clickedValue]));
-                }
-            } else if (clickedType === 'custom') {
-                activeLayer.custom = clickedValue;
-                activeLayer.waveform = '';
-                activeLayer.instrument = '';
-                activeLayer.sfx = '';
+            let defaultEffects;
+
+            switch (type) {
+                case 'waveform':
+                    activeLayer.waveform = value;
+                    defaultEffects = defaultWaveformEffects[value];
+                    break;
+                case 'instrument':
+                    activeLayer.instrument = value;
+                    defaultEffects = defaultInstrumentEffects[value];
+                    break;
+                case 'sfx':
+                    activeLayer.sfx = value;
+                    defaultEffects = defaultSfxEffects[value];
+                    break;
+                case 'custom':
+                    activeLayer.custom = value;
+                    const customSound = custom.find(cs => cs.name === value);
+                    if (customSound) {
+                        defaultEffects = customSound.effects;
+                    }
+                    break;
             }
 
-            // Update the audio nodes with the new effect values
+            if (defaultEffects) {
+                activeLayer.effects = JSON.parse(JSON.stringify(defaultEffects));
+            }
+
             updateLayerEffects(activeLayer);
-            renderSoundSelectionButtons(); // Re-render to update active state
+            renderSoundSelectionButtons();
         });
         return button;
     };
@@ -664,21 +692,61 @@ function renderSoundSelectionButtons() {
     sfxHeader.textContent = 'SFX';
     sfxHeader.classList.add('text-xl', 'font-bold', 'mb-2', 'mt-4', 'text-white');
     soundsPanel.appendChild(sfxHeader);
-    sfx.forEach(s =>  soundsPanel.appendChild(createButton('sfx', s, s.charAt(0).toUpperCase() + s.slice(1))));
-       
+    sfx.forEach(s => soundsPanel.appendChild(createButton('sfx', s, s.charAt(0).toUpperCase() + s.slice(1))));
+
     // Custom Sounds
     const customSoundHeader = document.createElement('h3');
     customSoundHeader.textContent = 'Custom';
     customSoundHeader.classList.add('text-xl', 'font-bold', 'mb-2', 'mt-4', 'text-white');
+    soundsPanel.appendChild(customSoundHeader);
 
+    // Add Custom Sound Button
     const addCustomSoundButton = document.createElement('button');
     addCustomSoundButton.textContent = 'Add Sound';
+    addCustomSoundButton.id = 'add-custom-sound'; // Assign an ID for easier selection
     addCustomSoundButton.classList.add('retro-button', 'px-4', 'py-2', 'mb-2', 'w-full');
-
-    soundsPanel.appendChild(customSoundHeader);
     soundsPanel.appendChild(addCustomSoundButton);
 
-    custom.forEach(cs =>  soundsPanel.appendChild(createButton('custom', cs, cs.charAt(0).toUpperCase() + cs.slice(1))));
+    addCustomSoundButton.addEventListener('click', () => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.chts';
+        fileInput.style.display = 'none';
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const soundData = JSON.parse(e.target.result);
+                    if (soundData.name && soundData.effects) {
+                        // Avoid duplicates
+                        if (!custom.some(cs => cs.name === soundData.name)) {
+                            custom.push(soundData);
+                            renderSoundSelectionButtons(); // Re-render to show the new button
+                        }
+                    } else {
+                        alert('Invalid .chts file. Missing "name" or "effects" property.');
+                    }
+                } catch (error) {
+                    alert('Error parsing .chts file.');
+                    console.error(error);
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        document.body.removeChild(fileInput);
+    });
+
+    // Render existing custom sounds
+    custom.forEach(cs => soundsPanel.appendChild(createButton('custom', cs.name, cs.name, cs.effects)));
 }
 
 function switchLayer(index, force = false) {
@@ -1120,12 +1188,9 @@ function playInstrument(instrument, frequency, time, duration, audioCtx, destina
 
 
     if (instrument === 'kick drum') {
-    // --- Drum: Noise burst + pitch envelope ---
     oscillator.type = 'triangle';
-    // Pitch envelope for "kick" effect
     oscillator.frequency.setValueAtTime(frequency, startTime);
     oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.3, startTime + 0.05);
-    // Noise burst for "snare" effect
     const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.08, audioCtx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
     for (let i = 0; i < output.length; i++) {
@@ -1143,8 +1208,6 @@ function playInstrument(instrument, frequency, time, duration, audioCtx, destina
     noiseSource.stop(noteEndTime + 0.08);
 
     } else if (instrument === 'snare drum') {
-    // --- Snare Drum: Noise burst + fast envelope ---
-    // Create a noise buffer
     const bufferSize = audioCtx.sampleRate * 0.15; // ~150ms burst
     const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
@@ -2130,8 +2193,6 @@ window.addEventListener('resize', () => {
     // which will naturally pick up the new dimensions on the next frame.
 });
 
-// --- END OF UNDO/REDO ---
-
 const saveSoundButton = document.getElementById('effects-window-save');
 
 saveSoundButton.addEventListener('click', () => {
@@ -2144,6 +2205,7 @@ saveSoundButton.addEventListener('click', () => {
     const soundData = {
         version: "1.0",
         type: "sound",
+        name: activeLayer.name || "Untitled Sound",
         sound: {}
     };
 
@@ -2170,7 +2232,7 @@ saveSoundButton.addEventListener('click', () => {
 
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${soundName}.chts`;
+    a.download = `${activeLayer.name}.chts`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
