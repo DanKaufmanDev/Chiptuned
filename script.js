@@ -2130,13 +2130,61 @@ window.addEventListener('resize', () => {
     // which will naturally pick up the new dimensions on the next frame.
 });
 
-// --- Effects Window Logic ---
+// --- END OF UNDO/REDO ---
+
+const saveSoundButton = document.getElementById('effects-window-save');
+
+saveSoundButton.addEventListener('click', () => {
+    const activeLayer = layers[activeLayerIndex];
+    if (!activeLayer) {
+        alert("No active layer to save.");
+        return;
+    }
+
+    const soundData = {
+        version: "1.0",
+        type: "sound",
+        sound: {}
+    };
+
+    let soundName = "custom-sound";
+    if (activeLayer.waveform) {
+        soundData.sound.type = "waveform";
+        soundData.sound.value = activeLayer.waveform;
+        soundName = activeLayer.waveform;
+    } else if (activeLayer.instrument) {
+        soundData.sound.type = "instrument";
+        soundData.sound.value = activeLayer.instrument;
+        soundName = activeLayer.instrument.replace(/\s+/g, '-'); // Sanitize name
+    } else if (activeLayer.sfx) {
+        soundData.sound.type = "sfx";
+        soundData.sound.value = activeLayer.sfx;
+        soundName = activeLayer.sfx;
+    }
+
+    soundData.effects = activeLayer.effects;
+
+    const dataStr = JSON.stringify(soundData, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${soundName}.chts`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+});
+
+// --- Effects Window ---
 const effectsWindowOverlay = document.getElementById('effects-window-overlay');
 const effectsWindowTitle = document.getElementById('effects-window-title');
 const effectsWindowClose = document.getElementById('effects-window-close');
 const effectsWindowCopy = document.getElementById('effects-window-copy');
 const effectsWindowPaste = document.getElementById('effects-window-paste');
 const effectsWindowReset = document.getElementById('effects-window-reset');
+let currentEditingLayerIndex = -1;
 
 let settingsWindowOverlay;
 const settingsWindowClose = document.getElementById('settings-window-close');
