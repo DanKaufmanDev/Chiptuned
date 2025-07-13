@@ -4082,3 +4082,16 @@ function showCustomAlertDialog(message) {
         confirmButton.addEventListener('click', onConfirm);
     });
 }
+
+
+// window.addEventListener('DOMContentLoaded', () => {
+//   setTimeout(() => {
+//     const splash = document.getElementById('splash-overlay');
+//     if (splash) {
+//       splash.classList.add('hide');
+//       setTimeout(() => {
+//         splash.style.display = 'none';
+//       }, 500);
+//     }
+//   }, 500);
+// });

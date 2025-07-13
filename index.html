@@ -9,21 +9,31 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-black flex items-center justify-center min-h-screen">
+    <!-- Splash Screen -->
+    <!-- <div id="splash-overlay">
+        <img src="assets/chiptuned_splah.webp" alt="Loading..." id="splash-image" />
+      </div> -->
+
+    <!-- Mobile Message -->
     <div class="mobile-message">
         <p class="text-2xl font-bold">This is a desktop application.</p>
         <p>Please open on a desktop to continue.</p>
     </div>
+
+    <!-- Application Container -->
     <div id="app-container">
         <div id="aspect-lock">
-            <!-- Application Container -->
+            <!-- Main Container -->
             <div id="main-container" class="flex flex-row justify-center h-full w-full">
-            <!-- Sounds Panel -->
+            
+                <!-- Sounds Panel -->
             <div id="sounds-container" class="retro-container flex flex-col flex-shrink-0 w-64 p-4">
                 <h2 class="text-2xl font-bold mb-4 text-white flex justify-center">Sounds</h2>
                 <div id="sounds-panel" class="flex flex-col items-center">
-                    <!-- Sound selection buttons will be rendered here -->
+                <!-- Sound selection buttons will be rendered here -->
                 </div>
             </div>
+           
             <!-- Left side: Top, Main, Bottom windows (as a column) -->
             <div class="flex flex-col min-w-0 flex-grow flex-shrink">
                 <!-- Top Window -->

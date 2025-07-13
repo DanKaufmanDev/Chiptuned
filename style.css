@@ -932,3 +932,40 @@ body {
     pointer-events: auto;
     transform: translateY(-50%) translateX(0);
 }
+
+#splash-overlay {
+  position: fixed;
+  z-index: 9999;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.5s;
+}
+#splash-overlay.hide {
+  opacity: 0;
+  pointer-events: none;
+}
+#splash-image {
+  max-width: 100vw;
+  max-height: 100vh;
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
+  aspect-ratio: 16/9;
+  background: #111;
+  border-radius: 0.5em;
+  box-shadow: 0 0 32px #000a;
+}
+@media (max-aspect-ratio: 16/9) {
+  #splash-image {
+    width: 100vw;
+    height: auto;
+  }
+}
+@media (min-aspect-ratio: 16/9) {
+  #splash-image {
+    height: 100vh;
+    width: auto;
+  }
+}
