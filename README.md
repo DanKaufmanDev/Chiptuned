@@ -14,7 +14,7 @@ This app began as a personal tool for designing game music and retro sound effec
 After refining the workflow for internal use, I realized this tool could help other musicians, game developers, and retro music enthusiasts — so I polished the UI, added export support, and released it as a free web app for everyone.
 
 ## Live Demo
-[(add your live link here)]
+[(LINK)]
 
 ## Issues
 List of [Known Issues/Bugs](https://github.com/DanKaufmanDev/Chiptuned/issues)\
@@ -32,7 +32,7 @@ Found a bug [Report it here](https://github.com/DanKaufmanDev/Chiptuned/issues/n
 - Bus mixer for individual track control
 - Full undo/redo system
 - Save/load as `.cht` project files
-- ⚙Customizable keyboard shortcuts
+- Customizable keyboard shortcuts
 - Export to `.wav` and `.mp3`
 - Theme switching (planned)
 
