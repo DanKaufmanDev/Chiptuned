@@ -14,7 +14,7 @@ This app began as a personal tool for designing game music and retro sound effec
 After refining the workflow for internal use, I realized this tool could help other musicians, game developers, and retro music enthusiasts — so I polished the UI, added export support, and released it as a free web app for everyone.
 
 ## Live Demo
-[(LINK)]
+[Chiptuned Link](https://dankaufmandev.github.io/Chiptuned/)
 
 ## Issues
 List of [Known Issues/Bugs](https://github.com/DanKaufmanDev/Chiptuned/issues)\
